@@ -1,0 +1,92 @@
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "cogency-code"
+version = "0.1.0"
+description = "A TUI agent built by cogency, for cogency, with cogency"
+authors = ["Tyson Chan <tyson.chan@proton.me>"]
+readme = "README.md"
+license = "Apache-2.0"
+keywords = ["ai", "agents", "tui", "terminal", "cogency", "textual"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Terminals",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+packages = [
+    { include = "cogency_code", from = "src" }
+]
+
+[tool.poetry.scripts]
+cogency-code = "cogency_code.__main__:main"
+
+[tool.poetry.dependencies]
+python = ">=3.11,<4.0"
+textual = "^0.63.0"
+aiohttp = "^3.9.0"
+cogency = {path = "../cogency"}
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.13.0"
+pytest = "^8.4.1"
+pytest-asyncio = "^1.1.0"
+pytest-timeout = "^2.4.0"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear (common bugs)
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "RET",  # flake8-return (cleaner returns)
+]
+ignore = [
+    "SIM108", # if-else-block-instead-of-if-exp (ternary not always clearer)
+    "SIM117", # combine-multiple-isinstance (sometimes separate is clearer)
+    "E501",   # line-too-long (prompts and test data often legitimately long)
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+pythonpath = ["src"]
+filterwarnings = [
+    "ignore::DeprecationWarning:starlette.*",
+    "ignore::PendingDeprecationWarning:starlette.*"
+]
+addopts = [
+    "--strict-markers",
+    "--strict-config", 
+    "-ra"  # Show short test summary for all except passed
+]
+markers = [
+    "asyncio: Async tests using pytest-asyncio",
+    "unit: Unit tests (can run in parallel)",
+    "integration: Integration tests (may need isolation)", 
+    "slow: Slow tests that should run last",
+    "timeout: Test timeout marker for pytest-timeout"
+]
+
+[tool.pytest_asyncio]
+asyncio_mode = "auto"

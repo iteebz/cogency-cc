@@ -1,0 +1,102 @@
+"""Configuration state management."""
+
+import json
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+
+
+@dataclass
+class Config:
+    """Runtime configuration persisted to ~/.cogency-code/config.json."""
+
+    provider: str = "glm"
+    mode: str = "auto"
+    user_id: str = "cogency_user"
+    conversation_id: str = "dev_work"
+    tools: list[str] = field(default_factory=lambda: ["file", "web", "memory"])
+    api_keys: dict[str, str] = field(default_factory=dict)
+
+    config_dir: Path = field(default_factory=lambda: Path.home() / ".cogency-code")
+    config_file: Path = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.config_file = self.config_dir / "config.json"
+        self.load()
+
+    def get_api_key(self, provider: str) -> str | None:
+        """Get API key: environment variables override stored keys."""
+        return os.getenv(f"{provider.upper()}_API_KEY") or self.api_keys.get(provider)
+
+    def get_api_key_status(self, provider: str) -> str:
+        """Get display status for API key."""
+        if os.getenv(f"{provider.upper()}_API_KEY"):
+            return f"✓ {provider.title()} (env)"
+        if self.api_keys.get(provider):
+            return f"✓ {provider.title()} (saved)"
+        return f"✗ {provider.title()}"
+
+    def load(self) -> None:
+        """Load configuration from file."""
+        if self.config_file.exists():
+            try:
+                with open(self.config_file, encoding="utf-8") as f:
+                    data = json.load(f)
+                    for key, value in data.items():
+                        if hasattr(self, key):
+                            setattr(self, key, value)
+            except Exception:
+                pass  # Start with defaults if config is broken
+
+    def save(self) -> None:
+        """Save configuration to file."""
+        self.config_dir.mkdir(exist_ok=True, mode=0o700)
+
+        # Convert to dict but exclude Path fields
+        data = {
+            "provider": self.provider,
+            "mode": self.mode,
+            "user_id": self.user_id,
+            "conversation_id": self.conversation_id,
+            "tools": self.tools,
+            "api_keys": self.api_keys,
+        }
+
+        with open(self.config_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
+    def update(self, **kwargs) -> None:
+        """Update config values and save."""
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+        self.save()
+
+
+def list_conversations() -> list[dict]:
+    """List all conversations with metadata."""
+    from cogency.lib.storage import DB
+
+    with DB.connect() as db:
+        rows = db.execute("""
+            SELECT 
+                conversation_id,
+                user_id,
+                MIN(timestamp) as first_message,
+                MAX(timestamp) as last_message,
+                COUNT(*) as message_count
+            FROM conversations
+            GROUP BY conversation_id, user_id
+            ORDER BY last_message DESC
+        """).fetchall()
+        
+        return [
+            {
+                "id": row[0],
+                "user_id": row[1],
+                "first": row[2],
+                "last": row[3],
+                "count": row[4],
+            }
+            for row in rows
+        ]
