@@ -1,74 +1,54 @@
 """Entry point for cogency-code TUI application."""
 
 import argparse
+import asyncio
 import sys
+import uuid
 
 from .app import CogencyCode
 
 
-def parse_args() -> argparse.Namespace:
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="cogency-code - TUI agent built by cogency, for cogency"
-    )
-    
-    # Check if this is a resume command
-    if len(sys.argv) > 1 and sys.argv[1] == "resume":
-        parser.add_argument("resume", help="Resume from an existing conversation")
-        return parser.parse_args()
-    
-    # Add query argument (doesn't start with -)
-    parser.add_argument("query", nargs="*", help="Single request query (bypasses TUI)")
-    
-    return parser.parse_args()
-
-
 def main() -> None:
     """Main entry point."""
-    args = parse_args()
-
-    # Handle emergency single-request mode
-    if args.query:
-        # Single request mode
+    if len(sys.argv) > 1 and sys.argv[1] == "resume":
+        try:
+            app = CogencyCode(llm_provider="glm", mode="resume_selection")
+            app.run()
+        except KeyboardInterrupt:
+            sys.exit(0)
+        return
+    
+    if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
         from .agent import create_agent
         from .state import Config
+        from cogency.lib.storage import default_storage
         
-        config = Config(
-            provider="glm",
-            user_id="cogency"
-        )
-        
+        query = " ".join(sys.argv[1:])
+        config = Config(provider="glm", user_id="cogency")
         agent = create_agent(config)
-        query = " ".join(args.query)  # Join all query args as the query
+        conv_id = str(uuid.uuid4())
         
-        print(f"> {query}")
-        print("-" * 50)
-        
-        import asyncio
         async def run_query():
             from cogency.cli.display import Renderer
-            renderer = Renderer()
             
-            # The agent itself is an async generator - pass it directly
-            await renderer.render_stream(agent(query=query, user_id="cogency", conversation_id=None))
+            storage = default_storage()
+            await storage.save_message(
+                conversation_id=conv_id,
+                user_id="cogency",
+                type="user",
+                content=query
+            )
+            
+            renderer = Renderer()
+            await renderer.render_stream(
+                agent(query=query, user_id="cogency", conversation_id=conv_id)
+            )
         
         asyncio.run(run_query())
-        print("\n" + "-" * 50)
         return
-
-    if hasattr(args, 'resume'):
-        # Launch resume selection UI
-        app = CogencyCode(
-            llm_provider="glm",
-            mode="resume_selection"
-        )
-    else:
-        # Normal launch
-        app = CogencyCode(
-            llm_provider="glm"
-        )
-
+    
     try:
+        app = CogencyCode(llm_provider="glm")
         app.run()
     except KeyboardInterrupt:
         sys.exit(0)

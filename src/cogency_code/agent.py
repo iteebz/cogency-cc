@@ -6,21 +6,32 @@ from cogency.lib.llms.anthropic import Anthropic
 from cogency.lib.llms.gemini import Gemini
 from cogency.lib.llms.openai import OpenAI
 
+from .instructions import load_instructions
 from .llms.glm import GLM
 from .state import Config
+
+CODING_IDENTITY = """IDENTITY
+You are a coding agent specialized for software development.
+
+Answer questions directly. Execute tasks systematically. No evasion, no ceremony, no asking what to continue when given a direct question.
+
+User instructions define your coding philosophy and communication style."""
 
 
 def create_agent(app_config: Config) -> Agent:
     """Create a cogency agent with project-scoped access."""
     
-    # Initialize LLM provider
     llm = _create_llm(app_config.provider, app_config)
     
-    # Create agent with project access to current directory
+    user_instructions = load_instructions()
+    combined_instructions = user_instructions if user_instructions else None
+    
     return Agent(
         llm=llm,
         max_iterations=10,
-        security=Security(access="project")
+        security=Security(access="project"),
+        identity=CODING_IDENTITY,
+        instructions=combined_instructions,
     )
 
 
