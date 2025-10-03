@@ -32,9 +32,15 @@ def main() -> None:
             from cogency.cli.display import Renderer
             
             renderer = Renderer()
-            await renderer.render_stream(
-                agent(query=query, user_id="cogency", conversation_id=conv_id)
-            )
+            stream = agent(query=query, user_id="cogency", conversation_id=conv_id)
+            try:
+                await renderer.render_stream(stream)
+            finally:
+                # Clean up LLM session
+                if hasattr(agent, 'config') and hasattr(agent.config, 'llm'):
+                    llm = agent.config.llm
+                    if llm and hasattr(llm, 'close'):
+                        await llm.close()
         
         asyncio.run(run_query())
         return

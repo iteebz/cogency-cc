@@ -22,7 +22,7 @@ def render_event(event: dict[str, Any]) -> Text | None:
     match event["type"]:
         case "user":
             if event["content"]:
-                return Text(f"$ {event['content']}\n", style="bold cyan")
+                return Text(f"$ {event['content']}", style="bold cyan")
             return None
 
         case "think":
@@ -42,29 +42,20 @@ def render_event(event: dict[str, Any]) -> Text | None:
 
                 call = parse_tool_call(event["content"])
                 action = format_call_human(call)
-                return Text(f"\n○ {action}", style="cyan")
+                return Text(f"○ {action}", style="cyan")
             except Exception:
-                return Text("\n○ Tool execution", style="cyan")
+                return Text("○ Tool execution", style="cyan")
 
         case "result":
             payload = event.get("payload", {})
             outcome = payload.get("outcome", "Tool completed")
-            content = payload.get("content", "")
-            error = payload.get("error", False)
-            
-            style = "red" if error else "green"
-            result_text = Text(f"● {outcome}", style=style)
-            
-            if content:
-                result_text.append(f"\n{content}", style="dim")
-            
-            return result_text
+            return Text(f"● {outcome}", style="green")
 
         case "metrics":
             return None
 
         case "end":
-            return Text("\n─ Session ended\n", style="yellow")
+            return Text("─ Session ended", style="yellow")
 
         case _:
             return Text(f"? {event.get('content', 'Unknown event')}", style="red")

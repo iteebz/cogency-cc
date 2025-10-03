@@ -5,12 +5,13 @@ import time
 from pathlib import Path
 from typing import List
 
-from cogency.lib.paths import Paths
-
 
 async def list_conversations(base_dir: str = None, limit: int = 10) -> List[dict]:
     """List recent conversations with first message preview."""
-    db_path = Paths.db(base_dir=base_dir)
+    if base_dir:
+        db_path = Path(base_dir) / ".cogency" / "store.db"
+    else:
+        db_path = Path(".cogency/store.db")
     
     if not db_path.exists():
         return []

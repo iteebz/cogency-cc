@@ -1,5 +1,6 @@
 """Main Textual app for cogency-code."""
 
+import asyncio
 import time
 
 from textual.app import App, ComposeResult
@@ -46,6 +47,14 @@ class CogencyCode(App):
         padding: 1;
     }
 
+    #exit-hint {
+        dock: bottom;
+        height: 1;
+        color: $text-muted;
+        text-align: right;
+        padding-right: 2;
+    }
+
     #input {
         height: 1;
         border: none;
@@ -74,7 +83,9 @@ class CogencyCode(App):
         self.conversation_id = str(uuid.uuid4())
         self.user_id = "cogency"
         self.mode = mode or self.config.mode
-        self.last_ctrl_c_time = 0
+        self.current_task = None
+        self.exit_hint_timer = None
+        self.exit_hint_visible = False
 
         # Initialize agent using factory
         self.agent = create_agent(self.config)
@@ -139,7 +150,9 @@ class CogencyCode(App):
 
     async def on_footer_query_submitted(self, event) -> None:
         """Handle query submission from footer."""
-        await self.handle_query(event.query)
+        if self.current_task:
+            self.current_task.cancel()
+        self.current_task = self.run_worker(self.handle_query(event.query))
         input_widget = self.query_one("#input")
         input_widget.focus()
 
@@ -162,14 +175,17 @@ class CogencyCode(App):
                 self.header.update_metrics(last_metrics)
 
         except Exception as e:
-            await self.stream_view.add_event(
-                {
-                    "type": "error",
-                    "content": f"Error: {str(e)}",
-                    "payload": {},
-                    "timestamp": 0,
-                }
-            )
+            if not isinstance(e, asyncio.CancelledError):
+                await self.stream_view.add_event(
+                    {
+                        "type": "error",
+                        "content": f"Error: {str(e)}",
+                        "payload": {},
+                        "timestamp": 0,
+                    }
+                )
+        finally:
+            self.current_task = None
 
     async def on_unmount(self) -> None:
         """Cleanup when app closes."""
@@ -187,17 +203,18 @@ class CogencyCode(App):
     
     async def on_key(self, event: Key) -> None:
         if event.key == "ctrl+c":
-            current_time = time.time()
-            if current_time - self.last_ctrl_c_time < 1.0:
+            event.prevent_default()
+            if self.exit_hint_visible:
                 self.exit()
             else:
                 input_widget = self.query_one("#input")
                 input_widget.clear()
-                self.last_ctrl_c_time = current_time
+                await self._show_exit_hint()
     
     def action_cancel_request(self) -> None:
         """Cancel current request (escape key)."""
-        pass
+        if self.current_task:
+            self.current_task.cancel()
     
     def action_clear(self) -> None:
         """Clear the stream view."""
@@ -206,6 +223,28 @@ class CogencyCode(App):
     def action_toggle_config(self) -> None:
         self.push_screen(ConfigPanel(), self._config_updated)
 
+    async def _show_exit_hint(self) -> None:
+        """Show subtle exit hint for 1 second."""
+        from textual.widgets import Label
+        
+        if self.exit_hint_timer:
+            self.exit_hint_timer.stop()
+        
+        try:
+            hint = self.query_one("#exit-hint")
+            hint.update("Ctrl-C again to exit")
+        except:
+            hint = Label("Ctrl-C again to exit", id="exit-hint")
+            await self.mount(hint)
+        
+        self.exit_hint_visible = True
+        
+        def hide_hint():
+            hint.update("")
+            self.exit_hint_visible = False
+        
+        self.exit_hint_timer = self.set_timer(1.0, hide_hint)
+    
     async def _config_updated(self, config_data: dict) -> None:
         """Handle configuration updates."""
         if config_data:
