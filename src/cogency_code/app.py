@@ -4,7 +4,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 
 from cogency_code.agent import create_agent
-from cogency_code.widgets.resume import ResumeSession
+from cogency_code.widgets.resume import ResumeConversation
 from cogency_code.widgets.config import ConfigPanel
 from cogency_code.widgets.footer import Footer
 from cogency_code.widgets.header import Header
@@ -74,8 +74,6 @@ class CogencyCode(App):
     def __init__(
         self,
         llm_provider: str = "glm",
-        conversation_id: str = "dev_work",
-        user_id: str = "cogency_user",
         mode: str = "auto",
         **kwargs,
     ) -> None:
@@ -83,8 +81,8 @@ class CogencyCode(App):
 
         self.config = Config()
         self.llm_provider = llm_provider or self.config.llm
-        self.conversation_id = conversation_id
-        self.user_id = user_id
+        self.conversation_id = "dev_work"
+        self.user_id = "cogency"  # Fixed single user
         self.mode = mode or self.config.mode
 
         # Initialize agent using factory
@@ -107,7 +105,7 @@ class CogencyCode(App):
         
         # If in resume selection mode, show conversation picker
         if self.mode == "resume_selection":
-            self.push_screen(ResumeSession(), self._conversation_selected)
+            self.push_screen(ResumeConversation(), self._conversation_selected)
 
     async def _conversation_selected(self, session_id: str | None) -> None:
         """Handle session selection from resume screen."""

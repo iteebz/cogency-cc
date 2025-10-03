@@ -12,7 +12,7 @@ class Config:
 
     provider: str = "glm"
     mode: str = "auto"
-    user_id: str = "cogency_user"
+    user_id: str = "cogency"
     conversation_id: str = "dev_work"
     tools: list[str] = field(default_factory=lambda: ["file", "web", "memory"])
     api_keys: dict[str, str] = field(default_factory=dict)

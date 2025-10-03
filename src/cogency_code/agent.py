@@ -19,10 +19,7 @@ def create_agent(app_config: Config) -> Agent:
     # Create agent with project access to current directory
     return Agent(
         llm=llm,
-        mode="replay",
-        max_iterations=3,
-        debug=True,
-        base_dir=".",
+        max_iterations=10,
         security=Security(access="project")
     )
 
