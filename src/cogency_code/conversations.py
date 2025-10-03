@@ -25,11 +25,11 @@ async def list_conversations(base_dir: str = None, limit: int = 10) -> List[dict
                     c1.content as first_message,
                     c1.timestamp,
                     COUNT(c2.timestamp) as message_count
-                FROM conversations c1
-                LEFT JOIN conversations c2 ON c1.conversation_id = c2.conversation_id
+                FROM messages c1
+                LEFT JOIN messages c2 ON c1.conversation_id = c2.conversation_id
                 WHERE c1.type = 'user' AND c1.timestamp = (
                     SELECT MIN(timestamp) 
-                    FROM conversations 
+                    FROM messages 
                     WHERE conversation_id = c1.conversation_id AND type = 'user'
                 )
                 GROUP BY c1.conversation_id, c1.user_id, c1.content, c1.timestamp

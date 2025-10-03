@@ -78,12 +78,14 @@ class CogencyCode(App):
         mode: str = "auto",
         **kwargs,
     ) -> None:
+        import uuid
+        
         super().__init__(**kwargs)
 
         self.config = Config()
         self.llm_provider = llm_provider or self.config.llm
-        self.conversation_id = "dev_work"
-        self.user_id = "cogency"  # Fixed single user
+        self.conversation_id = str(uuid.uuid4())
+        self.user_id = "cogency"
         self.mode = mode or self.config.mode
 
         # Initialize agent using factory
@@ -156,16 +158,20 @@ class CogencyCode(App):
     async def handle_query(self, query: str) -> None:
         """Handle user input - stream agent response."""
         try:
+            last_metrics = None
             async for event in self.agent(
                 query,
                 user_id=self.user_id,
                 conversation_id=self.conversation_id,
                 chunks=False,  # Semantic mode
             ):
-                await self.stream_view.add_event(event)
-
                 if event["type"] == "metrics":
-                    self.footer.update_metrics(event)
+                    last_metrics = event
+                else:
+                    await self.stream_view.add_event(event)
+            
+            if last_metrics:
+                self.footer.update_metrics(last_metrics)
 
         except Exception as e:
             await self.stream_view.add_event(
@@ -177,6 +183,20 @@ class CogencyCode(App):
                 }
             )
 
+    async def on_unmount(self) -> None:
+        """Cleanup when app closes."""
+        await self._cleanup_llm()
+    
+    async def _cleanup_llm(self) -> None:
+        """Close LLM session."""
+        if hasattr(self.agent, 'config') and hasattr(self.agent.config, 'llm'):
+            llm = self.agent.config.llm
+            if llm and hasattr(llm, 'close'):
+                try:
+                    await llm.close()
+                except Exception:
+                    pass
+    
     def action_clear(self) -> None:
         """Clear the stream view."""
         self.stream_view.clear()

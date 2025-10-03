@@ -31,14 +31,6 @@ def main() -> None:
         async def run_query():
             from cogency.cli.display import Renderer
             
-            storage = default_storage()
-            await storage.save_message(
-                conversation_id=conv_id,
-                user_id="cogency",
-                type="user",
-                content=query
-            )
-            
             renderer = Renderer()
             await renderer.render_stream(
                 agent(query=query, user_id="cogency", conversation_id=conv_id)

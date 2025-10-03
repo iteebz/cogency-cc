@@ -85,7 +85,7 @@ def list_conversations() -> list[dict]:
                 MIN(timestamp) as first_message,
                 MAX(timestamp) as last_message,
                 COUNT(*) as message_count
-            FROM conversations
+            FROM messages
             GROUP BY conversation_id, user_id
             ORDER BY last_message DESC
         """).fetchall()
