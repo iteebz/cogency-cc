@@ -13,7 +13,6 @@ class ResumeConversation(ModalScreen):
     
     BINDINGS = [
         Binding("escape,q", "dismiss", "Cancel"),
-        Binding("enter", "select", "Resume"),
     ]
     
     def compose(self) -> ComposeResult:
@@ -25,41 +24,28 @@ class ResumeConversation(ModalScreen):
     async def on_mount(self) -> None:
         """Load conversations when screen mounts."""
         table = self.query_one(DataTable)
+        table.cursor_type = "row"
         
-        # Add columns
         table.add_columns("Preview", "Messages", "Last Active", "ID")
         
-        # Load conversations
         conversations = await list_conversations(limit=20)
         
         if not conversations:
             table.add_row("No conversations found", "", "", "")
             return
         
-        # Add conversation rows
         for conv in conversations:
             table.add_row(
                 conv["preview"],
                 str(conv["message_count"]),
                 conv["time_ago"],
-                conv["conversation_id"][:8] + "...",  # Show short ID
-                key=conv["conversation_id"]  # Store full ID as key
+                conv["conversation_id"][:8] + "...",
+                key=conv["conversation_id"]
             )
         
-        # Focus the table
         table.focus()
     
-    def action_select(self) -> None:
-        """Select the highlighted conversation and resume it."""
-        table = self.query_one(DataTable)
-        
-        if table.cursor_row is None:
-            return
-        
-        # Get the full conversation ID from the row key
-        row_key = table.get_row_key(table.cursor_row)
-        if row_key:
-            conversation_id = str(row_key.value)
-            self.dismiss(conversation_id)
-        else:
-            self.dismiss(None)  # No selection
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Handle row selection via enter or click."""
+        if event.row_key and event.row_key.value:
+            self.dismiss(str(event.row_key.value))

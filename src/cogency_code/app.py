@@ -1,7 +1,10 @@
 """Main Textual app for cogency-code."""
 
+import time
+
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.events import Key
 
 from cogency_code.agent import create_agent
 from cogency_code.commands import dispatch
@@ -39,37 +42,21 @@ class CogencyCode(App):
     }
 
     Footer {
-        background: $surface;
-        height: 3;
-        padding: 0 1;
-        border-top: solid $accent;
-    }
-
-    #metrics {
-        width: 35%;
-        text-align: left;
-        color: $text-muted;
+        height: auto;
+        padding: 1;
     }
 
     #input {
-        width: 55%;
-    }
-
-    #config-btn {
-        width: 10%;
-        min-width: 3;
-    }
-
-    #header-text {
-        color: $primary;
-        text-style: bold;
+        height: 1;
+        border: none;
+        background: $surface;
     }
     """
 
     BINDINGS = [
-        Binding("ctrl+c", "quit", "Quit"),
         Binding("ctrl+l", "clear", "Clear"),
         Binding("ctrl+g", "toggle_config", "Config"),
+        Binding("escape", "cancel_request", "Cancel", show=False),
     ]
 
     def __init__(
@@ -87,6 +74,7 @@ class CogencyCode(App):
         self.conversation_id = str(uuid.uuid4())
         self.user_id = "cogency"
         self.mode = mode or self.config.mode
+        self.last_ctrl_c_time = 0
 
         # Initialize agent using factory
         self.agent = create_agent(self.config)
@@ -105,6 +93,9 @@ class CogencyCode(App):
         self.footer = self.query_one(Footer)
         self.header = self.query_one(Header)
         self.title = "cogency-code"
+        
+        input_widget = self.query_one("#input")
+        input_widget.focus()
         
         # If in resume selection mode, show conversation picker
         if self.mode == "resume_selection":
@@ -148,12 +139,9 @@ class CogencyCode(App):
 
     async def on_footer_query_submitted(self, event) -> None:
         """Handle query submission from footer."""
-        await self.stream_view.add_event({
-            "type": "user",
-            "content": event.query,
-            "timestamp": 0,
-        })
         await self.handle_query(event.query)
+        input_widget = self.query_one("#input")
+        input_widget.focus()
 
     async def handle_query(self, query: str) -> None:
         """Handle user input - stream agent response."""
@@ -163,7 +151,7 @@ class CogencyCode(App):
                 query,
                 user_id=self.user_id,
                 conversation_id=self.conversation_id,
-                chunks=False,  # Semantic mode
+                chunks=True,
             ):
                 if event["type"] == "metrics":
                     last_metrics = event
@@ -171,7 +159,7 @@ class CogencyCode(App):
                     await self.stream_view.add_event(event)
             
             if last_metrics:
-                self.footer.update_metrics(last_metrics)
+                self.header.update_metrics(last_metrics)
 
         except Exception as e:
             await self.stream_view.add_event(
@@ -197,17 +185,26 @@ class CogencyCode(App):
                 except Exception:
                     pass
     
+    async def on_key(self, event: Key) -> None:
+        if event.key == "ctrl+c":
+            current_time = time.time()
+            if current_time - self.last_ctrl_c_time < 1.0:
+                self.exit()
+            else:
+                input_widget = self.query_one("#input")
+                input_widget.clear()
+                self.last_ctrl_c_time = current_time
+    
+    def action_cancel_request(self) -> None:
+        """Cancel current request (escape key)."""
+        pass
+    
     def action_clear(self) -> None:
         """Clear the stream view."""
         self.stream_view.clear()
 
     def action_toggle_config(self) -> None:
-        """Toggle configuration panel."""
         self.push_screen(ConfigPanel(), self._config_updated)
-
-    async def on_footer_config_requested(self, event) -> None:
-        """Handle config request from footer."""
-        await self.push_screen(ConfigPanel(), self._config_updated)
 
     async def _config_updated(self, config_data: dict) -> None:
         """Handle configuration updates."""

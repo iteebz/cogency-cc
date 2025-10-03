@@ -32,7 +32,7 @@ def render_event(event: dict[str, Any]) -> Text | None:
 
         case "respond":
             if event["content"]:
-                return Text(f"\n> {event['content']}\n", style="bold white")
+                return Text(f"> {event['content']}", style="bold white")
             return None
 
         case "call":
@@ -47,8 +47,18 @@ def render_event(event: dict[str, Any]) -> Text | None:
                 return Text("\n○ Tool execution", style="cyan")
 
         case "result":
-            outcome = event.get("payload", {}).get("outcome", "Tool completed")
-            return Text(f"● {outcome}", style="green")
+            payload = event.get("payload", {})
+            outcome = payload.get("outcome", "Tool completed")
+            content = payload.get("content", "")
+            error = payload.get("error", False)
+            
+            style = "red" if error else "green"
+            result_text = Text(f"● {outcome}", style=style)
+            
+            if content:
+                result_text.append(f"\n{content}", style="dim")
+            
+            return result_text
 
         case "metrics":
             return None

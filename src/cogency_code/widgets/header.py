@@ -1,11 +1,11 @@
-"""Header widget showing model, session, and mode."""
+"""Header widget showing model, session, mode, and metrics."""
 
 from rich.text import Text
 from textual.widgets import Static
 
 
 class Header(Static):
-    """Header displaying model info, session ID, and mode."""
+    """Header displaying model info, session ID, mode, and metrics."""
 
     def __init__(
         self,
@@ -14,39 +14,42 @@ class Header(Static):
         mode: str = "auto",
         **kwargs,
     ) -> None:
-        # Initialize with content immediately
-        header_text = Text()
-        header_text.append(f"{model_name} ", style="bold cyan")
-        header_text.append("• ", style="dim")
-        header_text.append(f"session: {session_id} ", style="green")
-        header_text.append("• ", style="dim")
-        header_text.append(f"{mode} mode", style="yellow")
-
-        super().__init__(header_text, **kwargs)
-
+        super().__init__(**kwargs)
         self.model_name = model_name
         self.session_id = session_id
         self.mode = mode
+        self.metrics = "0→0 | 0.0s"
         self.styles.height = 1
         self.styles.padding = (0, 1)
+        self._render()
+
+    def _render(self) -> None:
+        txt = Text()
+        txt.append(f"{self.model_name} ", style="bold cyan")
+        txt.append("• ", style="dim")
+        txt.append(f"{self.session_id[:8]} ", style="green")
+        txt.append("• ", style="dim")
+        txt.append(f"{self.mode} ", style="yellow")
+        txt.append("• ", style="dim")
+        txt.append(self.metrics, style="dim")
+        self.update(txt)
 
     def update_info(
         self, model_name: str | None = None, session_id: str | None = None, mode: str | None = None
     ) -> None:
-        """Update header information dynamically."""
         if model_name is not None:
             self.model_name = model_name
         if session_id is not None:
             self.session_id = session_id
         if mode is not None:
             self.mode = mode
+        self._render()
 
-        # Re-render the header text
-        header_text = Text()
-        header_text.append(f"{self.model_name} ", style="bold cyan")
-        header_text.append("• ", style="dim")
-        header_text.append(f"session: {self.session_id} ", style="green")
-        header_text.append("• ", style="dim")
-        header_text.append(f"{self.mode} mode", style="yellow")
-
-        self.update(header_text)
+    def update_metrics(self, event) -> None:
+        if event.get("type") == "metrics":
+            p = event.get("payload", {})
+            tin = p.get("tokens_in", 0)
+            tout = p.get("tokens_out", 0)
+            dur = p.get("duration", 0)
+            self.metrics = f"{tin}→{tout} | {dur:.1f}s"
+            self._render()

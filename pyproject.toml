@@ -30,7 +30,7 @@ cogency-code = "cogency_code.__main__:main"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<4.0"
-textual = "^0.63.0"
+textual = "^6.2.1"
 aiohttp = "^3.9.0"
 cogency = {path = "../cogency"}
 
