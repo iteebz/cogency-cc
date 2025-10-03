@@ -1,18 +1,15 @@
 """Main Textual app for cogency-code."""
 
-from cogency.core.agent import Agent
-from cogency.lib.llms.anthropic import Anthropic
-from cogency.lib.llms.gemini import Gemini
-from cogency.lib.llms.openai import OpenAI
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 
-from cogency_code.llms.glm import GLM
-from cogency_code.state import Config
+from cogency_code.agent import create_agent
+from cogency_code.widgets.resume import ResumeSession
 from cogency_code.widgets.config import ConfigPanel
 from cogency_code.widgets.footer import Footer
 from cogency_code.widgets.header import Header
 from cogency_code.widgets.stream import StreamView
+from cogency_code.state import Config
 
 
 class CogencyCode(App):
@@ -90,28 +87,8 @@ class CogencyCode(App):
         self.user_id = user_id
         self.mode = mode or self.config.mode
 
-        # Initialize LLM provider
-        self.llm = self._create_llm(self.llm_provider)
-
-        # Initialize agent with project access (default)
-        self.agent = Agent(llm=self.llm, mode="replay", max_iterations=3, debug=True, base_dir=".")
-
-    def _create_llm(self, provider_name: str):
-        """Create LLM provider instance with API key."""
-        providers = {
-            "glm": GLM,
-            "openai": OpenAI,
-            "anthropic": Anthropic,
-            "gemini": Gemini,
-        }
-
-        if provider_name not in providers:
-            raise ValueError(f"Unknown provider: {provider_name}")
-
-        # Get API key from config or environment
-        api_key = self.config.get_api_key(provider_name)
-
-        return providers[provider_name](api_key=api_key)
+        # Initialize agent using factory
+        self.agent = create_agent(self.config)
 
     def compose(self) -> ComposeResult:
         """Create the app layout."""
@@ -127,6 +104,40 @@ class CogencyCode(App):
         self.footer = self.query_one(Footer)
         self.header = self.query_one(Header)
         self.title = "cogency-code"
+        
+        # If in resume selection mode, show conversation picker
+        if self.mode == "resume_selection":
+            self.push_screen(ResumeSession(), self._conversation_selected)
+
+    async def _conversation_selected(self, session_id: str | None) -> None:
+        """Handle session selection from resume screen."""
+        if session_id:
+            # Update the app with the selected session
+            self.conversation_id = session_id
+            self.mode = "replay"  # Switch to replay mode for resumed session
+            
+            # Update header to show the selected session
+            self.header.update_info(
+                model_name=self.llm_provider.upper(),
+                session_id=self.conversation_id,
+                mode=self.mode,
+            )
+            
+            # Add notification to stream
+            await self.stream_view.add_event({
+                "type": "respond",
+                "content": f"Resumed session: {session_id}",
+                "payload": {},
+                "timestamp": 0,
+            })
+        else:
+            # No selection made - exit
+            await self.stream_view.add_event({
+                "type": "respond", 
+                "content": "No session selected. Starting new session.",
+                "payload": {},
+                "timestamp": 0,
+            })
 
     async def on_footer_query_submitted(self, event) -> None:
         """Handle query submission from footer."""
@@ -176,11 +187,11 @@ class CogencyCode(App):
     async def _config_updated(self, config_data: dict) -> None:
         """Handle configuration updates."""
         if config_data:
-            new_provider = config_data.get("llm_provider")
-            if new_provider and new_provider != self.llm_provider:
+            new_provider = config_data.get("provider")
+            if new_provider and new_provider != self.config.provider:
+                self.config.provider = new_provider
                 self.llm_provider = new_provider
-                self.llm = self._create_llm(new_provider)
-                self.agent = Agent(llm=self.llm)
+                self.agent = create_agent(self.config)  # Recreate with new config
 
             new_mode = config_data.get("mode")
             if new_mode:
