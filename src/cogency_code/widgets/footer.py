@@ -33,8 +33,12 @@ class Footer(Horizontal):
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle user input submission."""
-        if event.value.strip():
-            self.post_message(self.QuerySubmitted(event.value.strip()))
+        value = event.value.strip()
+        if value:
+            if value.startswith("/"):
+                self.post_message(self.SlashCommand(value[1:]))
+            else:
+                self.post_message(self.QuerySubmitted(value))
             self.query_one("#input", Input).value = ""
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -70,3 +74,10 @@ class Footer(Horizontal):
         def __init__(self, query: str) -> None:
             super().__init__()
             self.query = query
+
+    class SlashCommand(Message):
+        """Message emitted when user submits a slash command."""
+
+        def __init__(self, command: str) -> None:
+            super().__init__()
+            self.command = command

@@ -4,6 +4,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 
 from cogency_code.agent import create_agent
+from cogency_code.commands import dispatch
 from cogency_code.widgets.resume import ResumeConversation
 from cogency_code.widgets.config import ConfigPanel
 from cogency_code.widgets.footer import Footer
@@ -136,6 +137,12 @@ class CogencyCode(App):
                 "payload": {},
                 "timestamp": 0,
             })
+
+    async def on_footer_slash_command(self, event) -> None:
+        """Handle slash commands from footer."""
+        result = await dispatch(event.command, self)
+        if result:
+            await self.stream_view.add_event(result)
 
     async def on_footer_query_submitted(self, event) -> None:
         """Handle query submission from footer."""
