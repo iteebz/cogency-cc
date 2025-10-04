@@ -37,15 +37,13 @@ async def handle_clear(app) -> dict:
 async def handle_compact(app) -> dict:
     """Compact conversation history into new session with summary."""
     from cogency.lib.storage import SQLite
-    
+
     storage = SQLite()
-    
+
     messages = await storage.load_messages(
-        conversation_id=app.conversation_id,
-        user_id=app.user_id,
-        exclude=["metrics", "chunk"]
+        conversation_id=app.conversation_id, user_id=app.user_id, exclude=["metrics", "chunk"]
     )
-    
+
     if not messages:
         return {
             "type": "respond",
@@ -53,13 +51,16 @@ async def handle_compact(app) -> dict:
             "payload": {},
             "timestamp": 0,
         }
-    
-    history = [{"role": "user" if msg["type"] == "user" else "assistant", "content": msg["content"]} for msg in messages]
-    
+
+    history = [
+        {"role": "user" if msg["type"] == "user" else "assistant", "content": msg["content"]}
+        for msg in messages
+    ]
+
     compress_prompt = [{"role": "user", "content": COMPACT_PROMPT}]
-    
-    summary = await app.agent.llm.generate(history + compress_prompt)
-    
+
+    summary = await app.agent.config.llm.generate(history + compress_prompt)
+
     new_id = str(uuid.uuid4())
     await storage.save_message(
         conversation_id=new_id,
@@ -67,7 +68,7 @@ async def handle_compact(app) -> dict:
         type="respond",
         content=summary,
     )
-    
+
     app.stream_view.clear()
     app.conversation_id = new_id
     app.header.update_info(
@@ -75,7 +76,7 @@ async def handle_compact(app) -> dict:
         session_id=new_id[:8] + "...",
         mode=app.mode,
     )
-    
+
     return {
         "type": "respond",
         "content": f"[Compacted]\n\n{summary}",
@@ -84,9 +85,29 @@ async def handle_compact(app) -> dict:
     }
 
 
+async def handle_docs(app) -> dict:
+    """Surface CLI diagnostics guidance without bloating the TUI."""
+    message = (
+        "Diagnostics live in the base CLI. Use commands like:\n"
+        "  cogency context system   # Show active system prompt\n"
+        "  cogency context <id>     # Inspect assembled conversation\n"
+        "  cogency stats            # Storage metrics\n"
+        "  cogency users            # Learned profiles\n"
+        "  cogency nuke             # Reset .cogency state\n"
+    )
+
+    return {
+        "type": "respond",
+        "content": message,
+        "payload": {},
+        "timestamp": 0,
+    }
+
+
 COMMANDS = {
     "clear": handle_clear,
     "compact": handle_compact,
+    "docs": handle_docs,
 }
 
 
@@ -94,10 +115,10 @@ async def dispatch(command: str, app) -> dict | None:
     """Dispatch slash command to handler."""
     cmd = command.lower()
     handler = COMMANDS.get(cmd)
-    
+
     if handler:
         return await handler(app)
-    
+
     return {
         "type": "respond",
         "content": f"Unknown command: /{cmd}",

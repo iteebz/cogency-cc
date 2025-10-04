@@ -12,7 +12,7 @@ def test_glm_initialization():
     glm = GLM()
 
     assert glm.api_key is not None
-    assert glm.http_model == "GLM-4.5"
+    assert glm.http_model == "GLM-4.6"
     assert glm.temperature == 0.7
     assert glm.max_tokens == 1024
 

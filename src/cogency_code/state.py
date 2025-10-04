@@ -2,8 +2,24 @@
 
 import json
 import os
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from cogency.lib.rotation import get_api_key as rotated_api_key
+from cogency.lib.rotation import load_keys as rotated_keys
+
+
+def _default_config_dir() -> Path:
+    """Select config directory based on environment."""
+    override = os.getenv("COGENCY_CODE_CONFIG_DIR")
+    if override:
+        return Path(override)
+
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        return Path(tempfile.gettempdir()) / f"cogency-code-tests-{os.getpid()}"
+
+    return Path.home() / ".cogency-code"
 
 
 @dataclass
@@ -11,13 +27,14 @@ class Config:
     """Runtime configuration persisted to ~/.cogency-code/config.json."""
 
     provider: str = "glm"
-    mode: str = "auto"
-    user_id: str = "cogency"
+    mode: str = "resume"
+    user_id: str = "new_user"
     conversation_id: str = "dev_work"
     tools: list[str] = field(default_factory=lambda: ["file", "web", "memory"])
     api_keys: dict[str, str] = field(default_factory=dict)
+    identity: str = field(default_factory=lambda: "coding")  # NEW: identity configuration
 
-    config_dir: Path = field(default_factory=lambda: Path.home() / ".cogency-code")
+    config_dir: Path = field(default_factory=lambda: _default_config_dir())
     config_file: Path = field(init=False)
 
     def __post_init__(self) -> None:
@@ -26,11 +43,15 @@ class Config:
 
     def get_api_key(self, provider: str) -> str | None:
         """Get API key: environment variables override stored keys."""
-        return os.getenv(f"{provider.upper()}_API_KEY") or self.api_keys.get(provider)
+        rotated = rotated_api_key(provider)
+        if rotated:
+            return rotated
+
+        return self.api_keys.get(provider)
 
     def get_api_key_status(self, provider: str) -> str:
         """Get display status for API key."""
-        if os.getenv(f"{provider.upper()}_API_KEY"):
+        if rotated_keys(provider.upper()):
             return f"✓ {provider.title()} (env)"
         if self.api_keys.get(provider):
             return f"✓ {provider.title()} (saved)"
@@ -60,6 +81,7 @@ class Config:
             "conversation_id": self.conversation_id,
             "tools": self.tools,
             "api_keys": self.api_keys,
+            "identity": self.identity,
         }
 
         with open(self.config_file, "w", encoding="utf-8") as f:
@@ -79,7 +101,7 @@ def list_conversations() -> list[dict]:
 
     with DB.connect() as db:
         rows = db.execute("""
-            SELECT 
+            SELECT
                 conversation_id,
                 user_id,
                 MIN(timestamp) as first_message,
@@ -89,7 +111,7 @@ def list_conversations() -> list[dict]:
             GROUP BY conversation_id, user_id
             ORDER BY last_message DESC
         """).fetchall()
-        
+
         return [
             {
                 "id": row[0],

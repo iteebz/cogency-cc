@@ -126,7 +126,7 @@ App (Textual)
 ```toml
 [tool.poetry.dependencies]
 python = ">=3.11,<4.0"
-cogency = "^3.0.1"
+cogency = "^3.0.2"
 textual = "^0.63.0"
 ```
 

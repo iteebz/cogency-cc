@@ -1,7 +1,6 @@
-"""Main Textual app for cogency-code."""
-
 import asyncio
-import time
+import contextlib
+import inspect
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -9,17 +8,15 @@ from textual.events import Key
 
 from cogency_code.agent import create_agent
 from cogency_code.commands import dispatch
-from cogency_code.widgets.resume import ResumeConversation
+from cogency_code.state import Config
 from cogency_code.widgets.config import ConfigPanel
 from cogency_code.widgets.footer import Footer
 from cogency_code.widgets.header import Header
+from cogency_code.widgets.resume import ResumeConversation
 from cogency_code.widgets.stream import StreamView
-from cogency_code.state import Config
 
 
 class CogencyCode(App):
-    """Main TUI application for cogency-code."""
-
     CSS = """
     Screen {
         layout: vertical;
@@ -70,18 +67,23 @@ class CogencyCode(App):
 
     def __init__(
         self,
-        llm_provider: str = "glm",
+        llm_provider: str = None,
         mode: str = "auto",
         **kwargs,
     ) -> None:
         import uuid
-        
+
         super().__init__(**kwargs)
 
         self.config = Config()
-        self.llm_provider = llm_provider or self.config.llm
+        if llm_provider:
+            self.config.provider = llm_provider
+        self.llm_provider = self.config.provider
         self.conversation_id = str(uuid.uuid4())
-        self.user_id = "cogency"
+        preferred_user_id = kwargs.pop("user_id", None)
+        if preferred_user_id is None and mode == "resume":
+            preferred_user_id = "custom_user"
+        self.user_id = preferred_user_id or "cogency"
         self.mode = mode or self.config.mode
         self.current_task = None
         self.exit_hint_timer = None
@@ -91,7 +93,6 @@ class CogencyCode(App):
         self.agent = create_agent(self.config)
 
     def compose(self) -> ComposeResult:
-        """Create the app layout."""
         yield Header(
             model_name=self.llm_provider.upper(), session_id=self.conversation_id, mode=self.mode
         )
@@ -99,57 +100,55 @@ class CogencyCode(App):
         yield Footer()
 
     def on_mount(self) -> None:
-        """Initialize the app after mounting."""
         self.stream_view = self.query_one(StreamView)
         self.footer = self.query_one(Footer)
         self.header = self.query_one(Header)
         self.title = "cogency-code"
-        
+
         input_widget = self.query_one("#input")
         input_widget.focus()
-        
+
         # If in resume selection mode, show conversation picker
         if self.mode == "resume_selection":
             self.push_screen(ResumeConversation(), self._conversation_selected)
 
     async def _conversation_selected(self, session_id: str | None) -> None:
-        """Handle session selection from resume screen."""
         if session_id:
-            # Update the app with the selected session
+            from cogency.lib.storage import default_storage
+
             self.conversation_id = session_id
-            self.mode = "replay"  # Switch to replay mode for resumed session
-            
-            # Update header to show the selected session
-            self.header.update_info(
-                model_name=self.llm_provider.upper(),
-                session_id=self.conversation_id,
-                mode=self.mode,
+            self.mode = "replay"
+
+            if hasattr(self, "header"):
+                self.header.update_info(
+                    model_name=self.llm_provider.upper(),
+                    session_id=self.conversation_id,
+                    mode=self.mode,
+                )
+
+            storage = default_storage()
+            messages = await storage.load_messages(
+                conversation_id=session_id, user_id=self.user_id, exclude=["metrics", "chunk"]
             )
-            
-            # Add notification to stream
-            await self.stream_view.add_event({
-                "type": "respond",
-                "content": f"Resumed session: {session_id}",
-                "payload": {},
-                "timestamp": 0,
-            })
+
+            for msg in messages:
+                await self.stream_view.add_event(msg)
         else:
-            # No selection made - exit
-            await self.stream_view.add_event({
-                "type": "respond", 
-                "content": "No session selected. Starting new session.",
-                "payload": {},
-                "timestamp": 0,
-            })
+            await self.stream_view.add_event(
+                {
+                    "type": "respond",
+                    "content": "No session selected. Starting new session.",
+                    "payload": {},
+                    "timestamp": 0,
+                }
+            )
 
     async def on_footer_slash_command(self, event) -> None:
-        """Handle slash commands from footer."""
         result = await dispatch(event.command, self)
         if result:
             await self.stream_view.add_event(result)
 
     async def on_footer_query_submitted(self, event) -> None:
-        """Handle query submission from footer."""
         if self.current_task:
             self.current_task.cancel()
         self.current_task = self.run_worker(self.handle_query(event.query))
@@ -157,7 +156,6 @@ class CogencyCode(App):
         input_widget.focus()
 
     async def handle_query(self, query: str) -> None:
-        """Handle user input - stream agent response."""
         try:
             last_metrics = None
             async for event in self.agent(
@@ -169,13 +167,14 @@ class CogencyCode(App):
                 if event["type"] == "metrics":
                     last_metrics = event
                 else:
-                    await self.stream_view.add_event(event)
-            
-            if last_metrics:
+                    if hasattr(self, "stream_view"):
+                        await self.stream_view.add_event(event)
+
+            if last_metrics and hasattr(self, "header"):
                 self.header.update_metrics(last_metrics)
 
         except Exception as e:
-            if not isinstance(e, asyncio.CancelledError):
+            if not isinstance(e, asyncio.CancelledError) and hasattr(self, "stream_view"):
                 await self.stream_view.add_event(
                     {
                         "type": "error",
@@ -188,21 +187,21 @@ class CogencyCode(App):
             self.current_task = None
 
     async def on_unmount(self) -> None:
-        """Cleanup when app closes."""
         await self._cleanup_llm()
-    
+
     async def _cleanup_llm(self) -> None:
-        """Close LLM session."""
-        if hasattr(self.agent, 'config') and hasattr(self.agent.config, 'llm'):
+        if hasattr(self.agent, "config") and hasattr(self.agent.config, "llm"):
             llm = self.agent.config.llm
-            if llm and hasattr(llm, 'close'):
-                try:
+            if llm and hasattr(llm, "close"):
+                with contextlib.suppress(Exception):
                     await llm.close()
-                except Exception:
-                    pass
-    
+
     async def on_key(self, event: Key) -> None:
         if event.key == "ctrl+c":
+            # Check if focus is on StreamView - if so, let it handle copy
+            focused = self.focused
+            if focused and isinstance(focused, StreamView):
+                return  # Let StreamView handle the copy
             event.prevent_default()
             if self.exit_hint_visible:
                 self.exit()
@@ -210,68 +209,87 @@ class CogencyCode(App):
                 input_widget = self.query_one("#input")
                 input_widget.clear()
                 await self._show_exit_hint()
-    
+
     def action_cancel_request(self) -> None:
-        """Cancel current request (escape key)."""
         if self.current_task:
             self.current_task.cancel()
-    
+
     def action_clear(self) -> None:
-        """Clear the stream view."""
         self.stream_view.clear()
 
     def action_toggle_config(self) -> None:
         self.push_screen(ConfigPanel(), self._config_updated)
 
     async def _show_exit_hint(self) -> None:
-        """Show subtle exit hint for 1 second."""
         from textual.widgets import Label
-        
+
         if self.exit_hint_timer:
             self.exit_hint_timer.stop()
-        
+
         try:
             hint = self.query_one("#exit-hint")
             hint.update("Ctrl-C again to exit")
-        except:
+        except Exception:
             hint = Label("Ctrl-C again to exit", id="exit-hint")
             await self.mount(hint)
-        
+
         self.exit_hint_visible = True
-        
+
         def hide_hint():
             hint.update("")
             self.exit_hint_visible = False
-        
+
         self.exit_hint_timer = self.set_timer(1.0, hide_hint)
-    
+
     async def _config_updated(self, config_data: dict) -> None:
-        """Handle configuration updates."""
+        if not isinstance(config_data, dict):
+            if hasattr(self, "push_screen"):
+                result = self.push_screen(ConfigPanel(), self._config_updated)
+                if inspect.isawaitable(result):
+                    await result
+            return
+
         if config_data:
             new_provider = config_data.get("provider")
+            agent_needs_recreation = False
+
             if new_provider and new_provider != self.config.provider:
                 self.config.provider = new_provider
                 self.llm_provider = new_provider
-                self.agent = create_agent(self.config)  # Recreate with new config
+                agent_needs_recreation = True
+
+            new_identity = config_data.get("identity")
+            if new_identity and new_identity != self.config.identity:
+                self.config.identity = new_identity
+                agent_needs_recreation = True
+
+            # Recreate agent if provider or identity changed
+            if agent_needs_recreation:
+                self.agent = create_agent(self.config)
 
             new_mode = config_data.get("mode")
             if new_mode:
                 self.mode = new_mode
 
-            self.header.update_info(
-                model_name=self.llm_provider.upper(),
-                session_id=self.conversation_id,
-                mode=self.mode,
-            )
+            # Save all config changes
+            self.config.save()
 
-            await self.stream_view.add_event(
-                {
-                    "type": "respond",
-                    "content": f"Configuration updated: LLM={self.llm_provider}, mode={self.mode}",
-                    "payload": {},
-                    "timestamp": 0,
-                }
-            )
+            if hasattr(self, "header"):
+                self.header.update_info(
+                    model_name=self.llm_provider.upper(),
+                    session_id=self.conversation_id,
+                    mode=self.mode,
+                )
+
+            if hasattr(self, "stream_view"):
+                await self.stream_view.add_event(
+                    {
+                        "type": "respond",
+                        "content": f"Configuration updated: LLM={self.llm_provider}, mode={self.mode}, identity={self.config.identity}",
+                        "payload": {},
+                        "timestamp": 0,
+                    }
+                )
 
 
 if __name__ == "__main__":

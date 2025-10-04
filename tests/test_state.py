@@ -14,8 +14,8 @@ def test_config_defaults():
     config = Config()
 
     assert config.provider == "glm"
-    assert config.mode == "auto"
-    assert config.user_id == "cogency_user"
+    assert config.mode == "resume"
+    assert config.user_id == "new_user"
     assert config.tools == ["file", "web", "memory"]
     assert config.api_keys == {}
 
@@ -24,21 +24,21 @@ def test_get_api_key_env_priority():
     """Test that environment variables take precedence over stored keys."""
     with tempfile.TemporaryDirectory() as temp_dir:
         config_path = Path(temp_dir) / "config.json"
-        
+
         # Create config with stored key
         config = Config()
         config.config_dir = Path(temp_dir)
         config.config_file = config_path
         config.api_keys = {"openai": "stored_key"}
         config.save()
-        
+
         # Load with env var override
         with patch.dict(os.environ, {"OPENAI_API_KEY": "env_key"}):
             config = Config()
             config.config_dir = Path(temp_dir)
             config.config_file = config_path
             config.load()
-            
+
             # Env var should win
             assert config.get_api_key("openai") == "env_key"
 
@@ -67,25 +67,25 @@ def test_load_existing_config():
     """Test loading existing configuration."""
     with tempfile.TemporaryDirectory() as temp_dir:
         config_path = Path(temp_dir) / "config.json"
-        
+
         # Write config file
         test_config = {
             "provider": "gemini",
             "mode": "replay",
             "user_id": "loaded_user",
             "tools": ["file", "web"],
-            "api_keys": {"glm": "test_key"}
+            "api_keys": {"glm": "test_key"},
         }
-        
+
         with open(config_path, "w") as f:
             json.dump(test_config, f)
-        
+
         # Load config
         config = Config()
         config.config_dir = Path(temp_dir)
         config.config_file = config_path
         config.load()
-        
+
         assert config.provider == "gemini"
         assert config.mode == "replay"
         assert config.user_id == "loaded_user"
@@ -97,7 +97,7 @@ def test_get_api_key_status():
     """Test API key status display."""
     config = Config()
     config.api_keys = {"glm": "stored_key"}
-    
+
     with patch.dict(os.environ, {}, clear=True):
         # Clear env vars first, then add what we want
         with patch.dict(os.environ, {"OPENAI_API_KEY": "env_key"}, clear=False):
@@ -109,14 +109,11 @@ def test_get_api_key_status():
 def test_config_update():
     """Test the update method."""
     config = Config()
-    
+
     config.update(
-        provider="gemini", 
-        mode="resume", 
-        user_id="new_user",
-        api_keys={"openai": "new_key"}
+        provider="gemini", mode="resume", user_id="new_user", api_keys={"openai": "new_key"}
     )
-    
+
     assert config.provider == "gemini"
     assert config.mode == "resume"
     assert config.user_id == "new_user"
@@ -127,11 +124,11 @@ def test_broken_config_handling():
     """Test handling of broken config files."""
     with tempfile.TemporaryDirectory() as temp_dir:
         config_path = Path(temp_dir) / "config.json"
-        
+
         # Write invalid JSON
         with open(config_path, "w") as f:
             f.write("invalid json content")
-        
+
         # Create config with custom path to avoid loading default config
         config = object.__new__(Config)  # Skip __post_init__
         config.provider = "glm"
@@ -142,9 +139,9 @@ def test_broken_config_handling():
         config.api_keys = {}
         config.config_dir = Path(temp_dir)
         config.config_file = config_path
-        
+
         config.load()  # Should not crash
-        
+
         # Should fall back to defaults (unchanged since load failed)
         assert config.provider == "glm"
         assert config.mode == "auto"

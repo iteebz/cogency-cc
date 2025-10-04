@@ -9,7 +9,7 @@ class Footer(Static):
     """Footer with minimal auto-expanding input."""
 
     def compose(self) -> ComposeResult:
-        yield Input(id="input", placeholder="Enter query or /command")
+        yield Input(id="input", placeholder="Enter query or /command (try /docs)")
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         value = event.value.strip()

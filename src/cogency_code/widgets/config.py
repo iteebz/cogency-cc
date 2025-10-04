@@ -110,6 +110,17 @@ class ConfigPanel(ModalScreen):
                     value="auto",
                     id="mode-select",
                 )
+            with Horizontal(classes="config-row"):
+                yield Label("Identity:", width=15)
+                yield Select(
+                    options=[
+                        ("Coding", "coding"),
+                        ("Cothinker", "cothinker"),
+                        ("Assistant", "assistant"),
+                    ],
+                    value="coding",
+                    id="identity-select",
+                )
 
         # Buttons
         with Horizontal(classes="config-buttons"):
@@ -131,6 +142,7 @@ class ConfigPanel(ModalScreen):
         anthropic_key = self.query_one("#anthropic-key", Input).value
         llm_provider = self.query_one("#llm-select", Select).value
         mode = self.query_one("#mode-select", Select).value
+        identity = self.query_one("#identity-select", Select).value  # NEW: capture identity
 
         if glm_key:
             os.environ["GLM_API_KEY"] = glm_key
@@ -143,7 +155,7 @@ class ConfigPanel(ModalScreen):
             "glm_key": glm_key,
             "openai_key": openai_key,
             "anthropic_key": anthropic_key,
-            "llm_provider": llm_provider,
+            "provider": llm_provider,  # FIXED: was llm_provider
             "mode": mode,
+            "identity": identity,  # NEW: return identity
         }
-

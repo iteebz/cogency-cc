@@ -36,26 +36,46 @@ def render_event(event: dict[str, Any]) -> Text | None:
             return None
 
         case "call":
-            try:
-                from cogency.tools.format import format_call_human
-                from cogency.tools.parse import parse_tool_call
-
-                call = parse_tool_call(event["content"])
-                action = format_call_human(call)
-                return Text(f"○ {action}", style="cyan")
-            except Exception:
-                return Text("○ Tool execution", style="cyan")
+            payload = event.get("payload", {})
+            outcome = payload.get("outcome", "Tool execution")
+            return Text(f"○ {outcome}", style="cyan")
 
         case "result":
-            payload = event.get("payload", {})
-            outcome = payload.get("outcome", "Tool completed")
-            return Text(f"● {outcome}", style="green")
+            try:
+                import json
+
+                if event["content"]:
+                    result_data = json.loads(event["content"])
+                    outcome = result_data.get("outcome", "Tool completed")
+                else:
+                    outcome = event.get("payload", {}).get("outcome", "Tool completed")
+
+                return Text(f"● {outcome}", style="green")
+            except Exception:
+                return Text("● Tool completed", style="green")
 
         case "metrics":
+            return None
+
+        case "execute":
             return None
 
         case "end":
             return Text("─ Session ended", style="yellow")
 
+        case "error":
+            payload = event.get("payload", {})
+            error_msg = payload.get("error", event.get("content", "Unknown error"))
+            return Text(f"✗ Error: {error_msg}", style="red")
+
+        case "interrupt":
+            return Text("⚠ Interrupted", style="yellow")
+
+        case "cancelled":
+            return Text("⚠ Cancelled", style="yellow")
+
         case _:
-            return Text(f"? {event.get('content', 'Unknown event')}", style="red")
+            fallback = event.get("content") or event.get("payload", {}).get("outcome")
+            if not fallback:
+                fallback = "Unknown event"
+            return Text(f"? {fallback}", style="red")
