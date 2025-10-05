@@ -4,6 +4,9 @@ default:
 install:
     @poetry install
 
+reload:
+    @poetry remove cogency && poetry add ../cogency
+
 test:
     @poetry run python -m pytest tests -v
 

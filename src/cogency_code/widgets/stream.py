@@ -57,6 +57,9 @@ class StreamView(VerticalScroll):
             self.scroll_end(animate=False)
 
             if payload.get("done", False):
+                stream["buffer"] += "\n"
+                stream_text = Text(stream["buffer"], style=stream["style"])
+                stream["widget"].update(stream_text)
                 del self.active_streams[event_type]
                 self.last_event_type = event_type
         elif event_type == "call":
