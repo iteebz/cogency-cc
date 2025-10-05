@@ -4,6 +4,9 @@ default:
 install:
     @poetry install
 
+dev-setup: install
+    @poetry run cc-setup
+
 reload:
     @poetry remove cogency && poetry add ../cogency
 

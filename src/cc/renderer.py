@@ -62,6 +62,10 @@ class Renderer:
                     if event["content"]:
                         print(f"{C.gray}---{C.R}\n{C.cyan}${C.R} {event['content']}")
                         self.current_state = "user"
+                case "intent":
+                    content = event.get("content", "")
+                    if content:
+                        print(f"{C.gray}intent: {content}{C.R}")
                 case "think":
                     content = event["content"]
                     if content and content.strip():
