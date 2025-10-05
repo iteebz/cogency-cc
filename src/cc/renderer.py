@@ -9,6 +9,9 @@ Event symbols:
   --- - turn separator
 """
 
+import asyncio
+import time
+
 from .lib.color import C
 
 
@@ -19,12 +22,16 @@ class Renderer:
         model: str | None = None,
         identity: str | None = None,
         messages: list | None = None,
+        llm=None,
+        conv_id: str | None = None,
+        summaries: list | None = None,
     ):
         self.verbose = verbose
         self.current_state = None
         self.model = model
         self.identity = identity
         self.messages = messages or []
+        self.summaries = summaries or []
         self.header_shown = False
         self.tool_count = 0
         self.last_metric = None
@@ -34,10 +41,23 @@ class Renderer:
         self.spinner_task = None
         self.first_chunk = True
         self.accumulator = ""
+        self.llm = llm
+        self.conv_id = conv_id
+        self.turn_start = None
+        self.turn_events = []
+        self.turn_tool_count = 0
 
     async def render_stream(self, agent_stream):
+        self.turn_start = time.time()
         async for event in agent_stream:
+            self.turn_events.append(event)
             if not self.header_shown:
+                if self.summaries:
+                    print(f"{C.gray}context:{C.R}")
+                    for summary in self.summaries:
+                        print(f"{C.gray}  {summary['summary']}{C.R}")
+                    print()
+
                 parts = []
                 if self.messages:
                     msg_count = len(self.messages)
@@ -84,6 +104,7 @@ class Renderer:
                     self._flush_accumulator()
                     self._transition_state(None)
                     self.tool_count += 1
+                    self.turn_tool_count += 1
                     try:
                         call = parse_tool_call(event.get("content", ""))
                         self.pending_call = call
@@ -122,6 +143,7 @@ class Renderer:
                     self._flush_accumulator()
                     self._transition_state(None)
                     print()
+                    await self._finalize_turn()
                 case "metric":
                     if "total" in event:
                         self.last_metric = event["total"]
@@ -179,6 +201,60 @@ class Renderer:
                     print("\n> ", end="", flush=True)
 
         self.current_state = new_state
+
+    async def _finalize_turn(self):
+        """Profile turn and generate rolling summary."""
+        if not self.turn_start:
+            return
+
+        duration = time.time() - self.turn_start
+        tokens = 0
+        if self.last_metric:
+            tokens = self.last_metric.get("input", 0) + self.last_metric.get("output", 0)
+
+        profile = {
+            "tokens": tokens,
+            "tools": self.turn_tool_count,
+            "duration": duration,
+        }
+
+        if self.conv_id and self.llm:
+            asyncio.create_task(self._summarize_turn(profile))
+
+    async def _summarize_turn(self, profile: dict):
+        """Async fire-and-forget turn summary."""
+        if not self.llm or not self.conv_id:
+            return
+
+        try:
+            from cogency.lib.storage import SQLite
+
+            content = self._build_summary_content()
+            prompt = f"Summarize this turn in 1-2 sentences:\n\n{content}"
+
+            summary = await self.llm.generate(prompt, max_tokens=100)
+
+            storage = SQLite()
+            await storage.save_turn_summary(
+                self.conv_id, summary, profile["tokens"], profile["tools"], profile["duration"]
+            )
+        except Exception:
+            pass
+
+    def _build_summary_content(self) -> str:
+        """Build summary from turn events."""
+        parts = []
+        for event in self.turn_events:
+            ev_type = event.get("type")
+            if ev_type == "user":
+                parts.append(f"User: {event.get('content', '')}")
+            elif ev_type == "intent":
+                parts.append(f"Intent: {event.get('content', '')}")
+            elif ev_type == "respond":
+                parts.append(f"Agent: {event.get('content', '')}")
+            elif ev_type == "call":
+                parts.append(f"Tool: {event.get('content', '')}")
+        return "\n".join(parts[:20])
 
     def _get_last_metrics(self) -> dict | None:
         if not self.messages:

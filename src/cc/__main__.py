@@ -99,16 +99,21 @@ def main() -> None:
         )
 
         agent = create_agent(config, cli_instruction)
-        asyncio.run(run_one_shot(agent, query, conv_id))
+        asyncio.run(run_one_shot(agent, query, conv_id, resuming))
 
 
-async def run_one_shot(agent, query: str, conv_id: str):
+async def run_one_shot(agent, query: str, conv_id: str, resuming: bool = False):
     from cogency.lib.storage import SQLite
 
     storage = SQLite()
     msgs = await storage.load_messages(conv_id, "cogency")
+    summaries = []
 
-    renderer = Renderer(messages=msgs)
+    if resuming:
+        summaries = await storage.load_turn_summaries(conv_id, limit=3)
+
+    llm = agent.config.llm if hasattr(agent, "config") else None
+    renderer = Renderer(messages=msgs, llm=llm, conv_id=conv_id, summaries=summaries)
     stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=True)
     try:
         await renderer.render_stream(stream)
