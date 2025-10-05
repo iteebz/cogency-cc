@@ -3,9 +3,9 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-name = "cogency-code"
+name = "cogency-cc"
 version = "0.1.0"
-description = "CLI coding agent built with cogency"
+description = "cogency coding cli"
 authors = ["Tyson Chan <tyson.chan@proton.me>"]
 readme = "README.md"
 license = "Apache-2.0"
@@ -26,7 +26,7 @@ packages = [
 ]
 
 [tool.poetry.scripts]
-cogency-code = "cc.__main__:main"
+cogency-cc = "cc.__main__:main"
 cc = "cc.__main__:main"
 cc-setup = "cc.setup:setup_shell"
 

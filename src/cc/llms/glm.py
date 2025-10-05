@@ -12,7 +12,7 @@ class GLM(LLM):
         api_key: str = None,
         http_model: str = "GLM-4.6",
         temperature: float = 0.7,
-        max_tokens: int = 1024,
+        max_tokens: int = 4096,
     ):
         self.api_key = api_key or get_api_key("glm")
         if not self.api_key:
@@ -41,7 +41,6 @@ class GLM(LLM):
                     "messages": messages,
                     "temperature": self.temperature,
                     "max_tokens": self.max_tokens,
-                    "stop": ["§execute", "§end"],
                 }
 
                 url = "https://api.z.ai/api/coding/paas/v4/chat/completions"
@@ -77,7 +76,6 @@ class GLM(LLM):
                     "messages": messages,
                     "temperature": self.temperature,
                     "max_tokens": self.max_tokens,
-                    "stop": ["§execute", "§end"],
                     "stream": True,
                 }
                 
