@@ -113,7 +113,7 @@ class TestAgentCreation:
                 call_args = mock_agent_class.call_args
 
                 assert "Custom instructions" in call_args.kwargs["instructions"]
-                assert call_args.kwargs["max_iterations"] == 22
+                assert call_args.kwargs["max_iterations"] == 42
 
     @patch("cc.agent.GLM")
     @patch("cc.agent.Config")

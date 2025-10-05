@@ -22,7 +22,7 @@ def create_agent(app_config: Config, cli_instruction: str = "") -> Agent:
     identity_with_model = f"You are Cogency Code powered by {model_name}.\n\n{identity}"
 
     tools = tools.category(["file", "system", "web"]) if cli_instruction else None
-    max_iterations = 22
+    max_iterations = 42
     profile = not cli_instruction
 
     return Agent(

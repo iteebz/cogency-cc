@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
-import aiohttp
 
+import aiohttp
 from cogency.core.protocols import LLM
 from cogency.lib.llms.interrupt import interruptible
 from cogency.lib.logger import logger
@@ -58,7 +58,7 @@ class GLM(LLM):
 
             except asyncio.TimeoutError:
                 logger.error("GLM API request timed out")
-                raise RuntimeError("GLM API request timed out")
+                raise RuntimeError("GLM API request timed out") from None
             except Exception as e:
                 logger.error(f"GLM generate failed: {str(e)}")
                 raise RuntimeError(f"GLM generate error: {str(e)}") from e
@@ -133,7 +133,7 @@ class GLM(LLM):
 
             except asyncio.TimeoutError:
                 logger.error("GLM API stream timed out")
-                raise RuntimeError("GLM API stream timed out")
+                raise RuntimeError("GLM API stream timed out") from None
             except Exception as e:
                 logger.error(f"GLM streaming failed: {str(e)}")
                 raise RuntimeError(f"GLM streaming error: {str(e)}") from e
