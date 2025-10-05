@@ -17,14 +17,14 @@ def _default_config_dir() -> Path:
         return Path(override)
 
     if os.getenv("PYTEST_CURRENT_TEST"):
-        return Path(tempfile.gettempdir()) / f"cogency-code-tests-{os.getpid()}"
+        return Path(tempfile.gettempdir()) / f"cogency-cc-tests-{os.getpid()}"
 
-    return Path.home() / ".cogency-code"
+    return Path.home() / ".cogency-cc"
 
 
 @dataclass
 class Config:
-    """Runtime configuration persisted to ~/.cogency-code/config.json."""
+    """Runtime configuration persisted to ~/.cogency-cc/config.json."""
 
     provider: str = "glm"
     mode: str = "resume"

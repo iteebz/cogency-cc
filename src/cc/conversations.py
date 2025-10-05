@@ -1,4 +1,4 @@
-"""Conversation listing utilities for cogency-code."""
+"""Conversation listing utilities for cogency-cc."""
 
 import sqlite3
 import time

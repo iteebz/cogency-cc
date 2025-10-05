@@ -144,6 +144,7 @@ class Renderer:
                     self._transition_state(None)
                     print()
                     await self._finalize_turn()
+                    return
                 case "metric":
                     if "total" in event:
                         self.last_metric = event["total"]
@@ -178,10 +179,12 @@ class Renderer:
             pass
 
     def _flush_accumulator(self):
-        if self.accumulator and self.accumulator != self.accumulator.rstrip("\n"):
-            stripped = self.accumulator.rstrip("\n")
-            diff_len = len(self.accumulator) - len(stripped)
-            print("\b" * diff_len, end="", flush=True)
+        if self.accumulator:
+            # Trim trailing whitespace including newlines
+            self.accumulator = self.accumulator.rstrip()
+            if self.accumulator:
+                print(self.accumulator, end="", flush=True)
+            print()  # Add a newline after flushing
         self.accumulator = ""
 
     def _transition_state(self, new_state: str | None):

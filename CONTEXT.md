@@ -1,4 +1,4 @@
-# Cogency-Code Context
+# Cogency-cc Context
 
 ## Architecture Decisions
 
@@ -24,7 +24,7 @@
 
 ## Core Problem Being Solved
 
-The agent fails because user queries don't reach the LLM. The integration layer between cogency-code and cogency core loses user content during message assembly.
+The agent fails because user queries don't reach the LLM. The integration layer between cogency-cc and cogency core loses user content during message assembly.
 
 ## Current Test Strategy
 

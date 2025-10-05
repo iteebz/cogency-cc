@@ -1,4 +1,4 @@
-"""Pytest configuration and fixtures for cogency-code testing."""
+"""Pytest configuration and fixtures for cogency-cc testing."""
 
 from collections.abc import AsyncGenerator
 from unittest.mock import patch

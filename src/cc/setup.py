@@ -1,4 +1,4 @@
-"""Shell setup for cogency-code."""
+cogency-cc
 
 import os
 from pathlib import Path
@@ -6,9 +6,9 @@ from pathlib import Path
 CC_FUNCTION = """
 cc() {
     if [ $# -eq 0 ]; then
-        cogency-code --chunks "$(cat)"
+        cogency-cc --chunks "$(cat)"
     else
-        noglob cogency-code --chunks "$@"
+        noglob cogency-cc --chunks "$@"
     fi
 }
 """
@@ -34,7 +34,7 @@ def setup_shell() -> None:
 
     content = rc_file.read_text()
 
-    if "cc() {" in content or "noglob cogency-code" in content:
+    if "cc() {" in content or "noglob cogency-cc" in content:
         print(f"✓ cc function already configured in {rc_file}")
         return
 

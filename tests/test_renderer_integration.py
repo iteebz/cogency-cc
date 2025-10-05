@@ -1,7 +1,7 @@
-"""Tests for cogency renderer integration in cogency-code.
+"""Tests for cogency renderer integration in cogency-cc.
 
 These tests verify that the cogency renderer works correctly with
-cogency-code agent events and maintains proper visual formatting.
+cogency-cc agent events and maintains proper visual formatting.
 """
 
 from io import StringIO
@@ -13,7 +13,7 @@ from cc.agent import create_agent
 
 
 class TestRendererIntegration:
-    """Test integration between cogency-code and cogency CLI renderer."""
+    """Test integration between cogency-cc and cogency CLI renderer."""
 
     @pytest.mark.asyncio
     async def test_chunked_respond_strips_leading_space_once(self):

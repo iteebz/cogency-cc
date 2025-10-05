@@ -1,6 +1,6 @@
-"""Integration tests for cogency-code agent creation and configuration.
+"""Integration tests for cogency-cc agent creation and configuration.
 
-These tests verify the contract between cogency-code and cogency library,
+These tests verify the contract between cogency-cc and cogency library,
 ensuring proper agent identity, instruction loading, and tool integration.
 """
 
@@ -247,7 +247,7 @@ class TestConfigurationIntegration:
         config.tools = ["file", "web", "memory"]
         config.api_keys = {}
 
-        # Verify defaults align with cogency-code design
+        # Verify defaults align with cogency-cc design
         assert config.provider == "glm"  # Default GLM provider
         assert config.mode == "auto"  # Auto mode for compatibility
         assert config.user_id == "cogency"

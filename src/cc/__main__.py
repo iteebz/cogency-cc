@@ -1,4 +1,4 @@
-"""Entry point for cogency-code CLI application."""
+"""Entry point for cogency-cc CLI application."""
 
 import asyncio
 import sys
@@ -118,6 +118,8 @@ async def run_one_shot(agent, query: str, conv_id: str, resuming: bool = False):
     try:
         await renderer.render_stream(stream)
     finally:
+        if stream and hasattr(stream, "aclose"):
+            await stream.aclose()
         if hasattr(agent, "config") and hasattr(agent.config, "llm"):
             llm = agent.config.llm
             if llm and hasattr(llm, "close"):

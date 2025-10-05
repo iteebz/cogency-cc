@@ -1,4 +1,6 @@
+import asyncio
 from collections.abc import AsyncGenerator
+import aiohttp
 
 from cogency.core.protocols import LLM
 from cogency.lib.llms.interrupt import interruptible
@@ -24,8 +26,6 @@ class GLM(LLM):
         self._session = None
 
     def _create_session(self):
-        import aiohttp
-
         return aiohttp.ClientSession()
 
     async def generate(self, messages: list[dict]) -> str:
@@ -45,7 +45,9 @@ class GLM(LLM):
 
                 url = "https://api.z.ai/api/coding/paas/v4/chat/completions"
 
-                async with self._session.post(url, headers=headers, json=data) as response:
+                # Add timeout to prevent hanging
+                timeout = aiohttp.ClientTimeout(total=60)  # 60 seconds timeout
+                async with self._session.post(url, headers=headers, json=data, timeout=timeout) as response:
                     if response.status != 200:
                         error_text = await response.text()
                         logger.error(f"GLM API error {response.status}: {error_text}")
@@ -54,6 +56,9 @@ class GLM(LLM):
                     result = await response.json()
                     return result["choices"][0]["message"]["content"]
 
+            except asyncio.TimeoutError:
+                logger.error("GLM API request timed out")
+                raise RuntimeError("GLM API request timed out")
             except Exception as e:
                 logger.error(f"GLM generate failed: {str(e)}")
                 raise RuntimeError(f"GLM generate error: {str(e)}") from e
@@ -85,13 +90,24 @@ class GLM(LLM):
 
                 url = "https://api.z.ai/api/coding/paas/v4/chat/completions"
 
-                async with self._session.post(url, headers=headers, json=data) as response:
+                # Add timeout to prevent hanging
+                timeout = aiohttp.ClientTimeout(total=120)  # 120 seconds timeout for streaming
+                async with self._session.post(url, headers=headers, json=data, timeout=timeout) as response:
                     if response.status != 200:
                         error_text = await response.text()
                         logger.error(f"GLM API error {response.status}: {error_text}")
                         raise ConnectionError(f"GLM API {response.status}: {error_text}")
 
+                    # Add a counter to prevent infinite loops
+                    chunk_count = 0
+                    max_chunks = 1000  # Maximum number of chunks to process
+
                     async for line in response.content:
+                        chunk_count += 1
+                        if chunk_count > max_chunks:
+                            logger.warning(f"GLM stream exceeded maximum chunks ({max_chunks}), terminating")
+                            break
+
                         line = line.decode("utf-8").strip()
                         if not line.startswith("data: "):
                             continue
@@ -115,6 +131,9 @@ class GLM(LLM):
                         except json.JSONDecodeError:
                             continue
 
+            except asyncio.TimeoutError:
+                logger.error("GLM API stream timed out")
+                raise RuntimeError("GLM API stream timed out")
             except Exception as e:
                 logger.error(f"GLM streaming failed: {str(e)}")
                 raise RuntimeError(f"GLM streaming error: {str(e)}") from e
