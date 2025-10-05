@@ -1,6 +1,7 @@
 """Event rendering widget for cogency-code."""
 
 import pyperclip
+from rich.text import Text
 from textual.binding import Binding
 from textual.containers import VerticalScroll
 from textual.widgets import Static
@@ -26,26 +27,33 @@ class StreamView(VerticalScroll):
         event_type = event["type"]
         payload = event.get("payload", {})
 
-        if event_type == "metrics":
+        if event_type in ("metric", "chunk", "end"):
             return
 
         if event_type == "user":
             self.active_streams = {}
             self.last_call_content = None
             rendered = render_event(event)
-            if rendered:
-                await self.mount(Static(rendered))
+            await self._mount_event(rendered, event_type)
             self.last_event_type = event_type
         elif event_type in ("think", "respond"):
             if event_type not in self.active_streams:
-                prefix = "\n>" if event_type == "respond" else "\n~"
-                widget = Static(prefix)
+                prefix = "> " if event_type == "respond" else "~ "
+                style = "bold white" if event_type == "respond" else "dim italic"
+                widget = Static(
+                    Text(prefix, style=style), classes=f"event event-{event_type}"
+                )
                 await self.mount(widget)
-                self.active_streams[event_type] = {"widget": widget, "buffer": prefix}
+                self.active_streams[event_type] = {
+                    "widget": widget,
+                    "buffer": prefix,
+                    "style": style,
+                }
 
             stream = self.active_streams[event_type]
             stream["buffer"] += event["content"]
-            stream["widget"].update(stream["buffer"])
+            stream_text = Text(stream["buffer"], style=stream["style"])
+            stream["widget"].update(stream_text)
             self.scroll_end(animate=False)
 
             if payload.get("done", False):
@@ -57,19 +65,16 @@ class StreamView(VerticalScroll):
             self.last_call_content = event["content"]
             self.active_streams = {}
             rendered = render_event(event)
-            if rendered:
-                await self.mount(Static(rendered))
+            await self._mount_event(rendered, event_type)
             self.last_event_type = None
         elif event_type == "result":
             self.active_streams = {}
             rendered = render_event(event)
-            if rendered:
-                await self.mount(Static(rendered))
+            await self._mount_event(rendered, event_type)
             self.last_event_type = "result"
         else:
             rendered = render_event(event)
-            if rendered:
-                await self.mount(Static(rendered))
+            await self._mount_event(rendered, event_type)
             self.last_event_type = event_type
 
     def clear(self) -> None:
@@ -131,3 +136,12 @@ class StreamView(VerticalScroll):
             return ""
         except Exception:
             return ""
+
+    async def _mount_event(self, renderable, event_type: str) -> None:
+        """Mount rendered content with consistent styling."""
+
+        if not renderable:
+            return
+
+        await self.mount(Static(renderable, classes=f"event event-{event_type}"))
+        self.scroll_end(animate=False)

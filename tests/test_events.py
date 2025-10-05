@@ -1,5 +1,7 @@
 """Tests for event rendering system."""
 
+import json
+
 from cogency_code.events import render_event
 
 
@@ -62,6 +64,27 @@ def test_render_call_event_basic():
     assert rendered.style == "cyan"
 
 
+def test_render_call_event_file_read_details():
+    """Test rendering file_read calls includes path."""
+    event = {
+        "type": "call",
+        "content": json.dumps(
+            {
+                "name": "file_read",
+                "args": {"file": "src/app.py", "start": 5, "lines": 10},
+            }
+        ),
+        "payload": {},
+        "timestamp": 0,
+    }
+
+    rendered = render_event(event)
+
+    assert rendered is not None
+    assert "File Read" in rendered.plain
+    assert "src/app.py" in rendered.plain
+
+
 def test_render_result_event_with_outcome():
     """Test rendering result events with outcome."""
     event = {
@@ -77,6 +100,25 @@ def test_render_result_event_with_outcome():
     assert "File read successfully" in rendered.plain
     assert "●" in rendered.plain
     assert rendered.style == "green"
+
+
+def test_render_result_event_file_read_lines():
+    """Test that file_read results show outcome."""
+    event = {
+        "type": "result",
+        "content": "",
+        "payload": {
+            "outcome": "Read src/app.py",
+            "content": "line1\nline2\n",
+            "_call": {"name": "file_read", "args": {"file": "src/app.py", "start": 9}},
+        },
+        "timestamp": 0,
+    }
+
+    rendered = render_event(event)
+
+    assert rendered is not None
+    assert "Read src/app.py" in rendered.plain
 
 
 def test_render_result_event_without_outcome():

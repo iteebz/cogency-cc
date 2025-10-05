@@ -44,6 +44,29 @@ class CogencyCode(App):
         padding: 1;
     }
 
+    .event {
+        padding: 0 1;
+        margin: 0 0 1 0;
+    }
+
+    .event-call {
+        border-left: solid cyan;
+        background: $surface;
+    }
+
+    .event-result {
+        border-left: solid green;
+        background: $surface;
+    }
+
+    .event-respond {
+        border-left: solid white;
+    }
+
+    .event-think {
+        border-left: solid gray;
+    }
+
     #exit-hint {
         dock: bottom;
         height: 1;
