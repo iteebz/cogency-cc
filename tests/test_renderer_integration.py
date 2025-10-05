@@ -1,6 +1,6 @@
-"""Tests for cogency CLI renderer integration in cogency-code.
+"""Tests for cogency renderer integration in cogency-code.
 
-These tests verify that the cogency CLI renderer works correctly with
+These tests verify that the cogency renderer works correctly with
 cogency-code agent events and maintains proper visual formatting.
 """
 
@@ -16,9 +16,90 @@ class TestRendererIntegration:
     """Test integration between cogency-code and cogency CLI renderer."""
 
     @pytest.mark.asyncio
+    async def test_chunked_respond_strips_leading_space_once(self):
+        """Test that chunked respond events strip leading space only on state transition."""
+        from cc.renderer import Renderer
+
+        mock_events = [
+            {"type": "respond", "content": " Hello", "timestamp": 1.0},
+            {"type": "respond", "content": "! I'm", "timestamp": 1.1},
+            {"type": "respond", "content": " here", "timestamp": 1.2},
+            {"type": "end", "content": "", "timestamp": 1.3},
+        ]
+
+        async def mock_stream():
+            for event in mock_events:
+                yield event
+
+        output = StringIO()
+        with patch("sys.stdout", output):
+            renderer = Renderer()
+            await renderer.render_stream(mock_stream())
+
+        output_text = output.getvalue()
+        assert "Hello! I'm here" in output_text
+        assert "  " not in output_text
+
+    @pytest.mark.asyncio
+    async def test_chunked_think_strips_leading_space_once(self):
+        """Test that chunked think events strip leading space only on state transition."""
+        from cc.renderer import Renderer
+
+        mock_events = [
+            {"type": "think", "content": " analyzing", "timestamp": 1.0},
+            {"type": "think", "content": " the", "timestamp": 1.1},
+            {"type": "think", "content": " request", "timestamp": 1.2},
+            {"type": "end", "content": "", "timestamp": 1.3},
+        ]
+
+        async def mock_stream():
+            for event in mock_events:
+                yield event
+
+        output = StringIO()
+        with patch("sys.stdout", output):
+            renderer = Renderer()
+            await renderer.render_stream(mock_stream())
+
+        output_text = output.getvalue()
+        assert "analyzing the request" in output_text
+
+    @pytest.mark.asyncio
+    async def test_strips_trailing_newline_before_state_change(self):
+        """Test that trailing newlines are stripped before state transitions."""
+        from cc.renderer import Renderer
+
+        mock_events = [
+            {"type": "respond", "content": "Here is the answer", "timestamp": 1.0},
+            {"type": "respond", "content": "\n\n", "timestamp": 1.1},
+            {
+                "type": "call",
+                "content": '{"name": "file_read", "args": {"file": "test.py"}}',
+                "timestamp": 1.2,
+            },
+            {"type": "result", "payload": {"outcome": "ok"}, "timestamp": 1.3},
+            {"type": "end", "content": "", "timestamp": 1.4},
+        ]
+
+        async def mock_stream():
+            for event in mock_events:
+                yield event
+
+        output = StringIO()
+        with patch("sys.stdout", output):
+            renderer = Renderer()
+            await renderer.render_stream(mock_stream())
+
+        output_text = output.getvalue()
+        lines = output_text.split("\n")
+        assert not any(
+            line == "" and lines[i + 1].startswith("○") for i, line in enumerate(lines[:-1])
+        )
+
+    @pytest.mark.asyncio
     async def test_renderer_with_agent_stream(self):
         """Test that renderer correctly processes agent event stream."""
-        from cc.cli.display import Renderer
+        from cc.renderer import Renderer
 
         # Mock agent stream with various event types
         mock_events = [
@@ -56,7 +137,7 @@ class TestRendererIntegration:
     @pytest.mark.asyncio
     async def test_renderer_verbose_metrics(self):
         """Test verbose mode shows metrics information."""
-        from cc.cli.display import Renderer
+        from cc.renderer import Renderer
 
         mock_events = [
             {"type": "metric", "total": {"input": 100, "output": 200, "duration": 2.5}},
@@ -77,7 +158,7 @@ class TestRendererIntegration:
     @pytest.mark.asyncio
     async def test_renderer_error_handling(self):
         """Test renderer handles error events gracefully."""
-        from cc.cli.display import Renderer
+        from cc.renderer import Renderer
 
         mock_events = [
             {"type": "error", "content": "Something went wrong", "timestamp": 1.0},
@@ -98,7 +179,7 @@ class TestRendererIntegration:
     @pytest.mark.asyncio
     async def test_renderer_interrupt_handling(self):
         """Test renderer handles interrupt events correctly."""
-        from cc.cli.display import Renderer
+        from cc.renderer import Renderer
 
         mock_events = [
             {"type": "interrupt", "content": "User cancelled", "timestamp": 1.0},
@@ -125,7 +206,7 @@ class TestEventFlow:
     @patch("cc.agent.Config")
     async def test_complete_event_flow(self, mock_config_class, mock_glm):
         """Test complete flow from agent creation to renderer output."""
-        from cc.cli.display import Renderer
+        from cc.renderer import Renderer
 
         # Setup agent mock
         mock_config = MagicMock()
@@ -173,7 +254,7 @@ class TestRendererContracts:
 
     def test_renderer_state_management(self):
         """Test renderer manages internal state correctly."""
-        from cc.cli.display import Renderer
+        from cc.renderer import Renderer
 
         renderer = Renderer()
         assert renderer.current_state is None
@@ -184,7 +265,7 @@ class TestRendererContracts:
 
     def test_renderer_symbol_consistency(self):
         """Test that symbols match cogency conventions."""
-        from cc.cli.display import Renderer
+        from cc.renderer import Renderer
 
         # These symbols should match cogency CLI conventions
 

@@ -1,4 +1,4 @@
-"""CLI renderer for cogency event streams.
+"""Renderer for cogency event streams.
 
 Event symbols:
   $ - user input
@@ -9,7 +9,7 @@ Event symbols:
   --- - turn separator
 """
 
-from ..lib.color import C
+from .lib.color import C
 
 
 class Renderer:
@@ -32,6 +32,8 @@ class Renderer:
         self.spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self.spinner_index = 0
         self.spinner_task = None
+        self.first_chunk = True
+        self.accumulator = ""
 
     async def render_stream(self, agent_stream):
         async for event in agent_stream:
@@ -41,6 +43,10 @@ class Renderer:
                     msg_count = len(self.messages)
                     parts.append(f"{msg_count} msg{'s' if msg_count != 1 else ''}")
 
+                    call_count = sum(1 for m in self.messages if m.get("type") == "call")
+                    if call_count:
+                        parts.append(f"{call_count} call{'s' if call_count != 1 else ''}")
+
                     last_metrics = self._get_last_metrics()
                     if last_metrics:
                         tok_in = last_metrics.get("input", 0)
@@ -48,7 +54,7 @@ class Renderer:
                         parts.append(f"{tok_in}→{tok_out} tok")
 
                 if parts:
-                    print(f"{C.gray}" + " | ".join(parts) + f"{C.R}")
+                    print(f"{C.gray}» " + " | ".join(parts) + f"{C.R}")
 
                 self.header_shown = True
             match event["type"]:
@@ -60,22 +66,25 @@ class Renderer:
                     content = event["content"]
                     if content and content.strip():
                         if self.current_state != "think":
+                            self._flush_accumulator()
                             self._transition_state("think")
-                        print(
-                            content.lstrip() if self.current_state == "think" else content,
-                            end="",
-                            flush=True,
-                        )
+                            self.first_chunk = True
+                        if self.first_chunk:
+                            content = content.lstrip()
+                            self.first_chunk = False
+                        self.accumulator += content
+                        print(content, end="", flush=True)
                 case "call":
                     from cogency.tools.parse import parse_tool_call
 
+                    self._flush_accumulator()
                     self._transition_state(None)
                     self.tool_count += 1
                     try:
                         call = parse_tool_call(event.get("content", ""))
                         self.pending_call = call
                         in_progress = self._format_in_progress(call)
-                        print(f"\r{C.cyan}○{C.R} {in_progress}", end="", flush=True)
+                        print(f"\n{C.cyan}○{C.R} {in_progress}", end="", flush=True)
                     except Exception:
                         self.pending_call = None
                 case "execute":
@@ -97,13 +106,16 @@ class Renderer:
                     content = event["content"]
                     if content and content.strip():
                         if self.current_state != "respond":
+                            self._flush_accumulator()
                             self._transition_state("respond")
-                        print(
-                            content.lstrip() if self.current_state == "respond" else content,
-                            end="",
-                            flush=True,
-                        )
+                            self.first_chunk = True
+                        if self.first_chunk:
+                            content = content.lstrip()
+                            self.first_chunk = False
+                        self.accumulator += content
+                        print(content, end="", flush=True)
                 case "end":
+                    self._flush_accumulator()
                     self._transition_state(None)
                     print()
                 case "metric":
@@ -138,6 +150,13 @@ class Renderer:
                 await asyncio.sleep(0.08)
         except asyncio.CancelledError:
             pass
+
+    def _flush_accumulator(self):
+        if self.accumulator and self.accumulator != self.accumulator.rstrip("\n"):
+            stripped = self.accumulator.rstrip("\n")
+            diff_len = len(self.accumulator) - len(stripped)
+            print("\b" * diff_len, end="", flush=True)
+        self.accumulator = ""
 
     def _transition_state(self, new_state: str | None):
         if self.current_state in ("think", "respond"):

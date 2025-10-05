@@ -5,9 +5,9 @@ import sys
 import uuid
 
 from .agent import create_agent
-from .cli.display import Renderer
 from .conversations import get_last_conversation
 from .instructions import find_project_root
+from .renderer import Renderer
 from .state import Config
 
 
@@ -103,7 +103,12 @@ def main() -> None:
 
 
 async def run_one_shot(agent, query: str, conv_id: str):
-    renderer = Renderer()
+    from cogency.lib.storage import Storage
+
+    storage = Storage()
+    msgs = await storage.load_messages(conv_id, "cogency")
+
+    renderer = Renderer(messages=msgs)
     stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=True)
     try:
         await renderer.render_stream(stream)
