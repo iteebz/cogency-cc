@@ -26,6 +26,7 @@ def create_agent(app_config: Config) -> Agent:
         identity=identity_with_model,
         instructions=instructions,
         mode="auto",
+        profile=True,
     )
 
 

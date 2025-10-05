@@ -104,10 +104,38 @@ async def handle_docs(app) -> dict:
     }
 
 
+async def handle_profile(app) -> dict:
+    """Show learned user profile."""
+    from cogency.context.profile import get
+
+    profile = await get(app.user_id)
+    
+    if not profile:
+        return {
+            "type": "respond",
+            "content": f"No profile learned yet for user '{app.user_id}'.\n\nProfiles are learned automatically every 5 messages.",
+            "payload": {},
+            "timestamp": 0,
+        }
+    
+    import json
+    meta = profile.pop("_meta", {})
+    content = json.dumps(profile, indent=2)
+    
+    msg_count = meta.get("messages_processed", "unknown")
+    return {
+        "type": "respond",
+        "content": f"Profile for '{app.user_id}' ({msg_count} messages):\n\n{content}",
+        "payload": {},
+        "timestamp": 0,
+    }
+
+
 COMMANDS = {
     "clear": handle_clear,
     "compact": handle_compact,
     "docs": handle_docs,
+    "profile": handle_profile,
 }
 
 
