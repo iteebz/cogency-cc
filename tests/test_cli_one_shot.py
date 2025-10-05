@@ -13,6 +13,7 @@ def test_cli_one_shot_uses_direct_instructions(monkeypatch, tmp_path):
         def __init__(self, *_, **kwargs):
             captured["instructions"] = kwargs.get("instructions")
             captured["identity"] = kwargs.get("identity")
+            captured["security"] = kwargs.get("security")
             self.config = SimpleNamespace(llm=None)
 
         def __call__(self, *_, **__):
@@ -47,4 +48,6 @@ def test_cli_one_shot_uses_direct_instructions(monkeypatch, tmp_path):
     assert captured["instructions"] is not None
     assert "CLI ONE-SHOT MODE" in captured["instructions"]
     assert "Do not introduce yourself" in captured["instructions"]
+    assert captured["security"] is not None
+    assert getattr(captured["security"], "access", None) == "project"
     assert emitted_events and emitted_events[0]["content"] == "4"

@@ -41,7 +41,7 @@ class GLM(LLM):
                     "messages": messages,
                     "temperature": self.temperature,
                     "max_tokens": self.max_tokens,
-                    "stop": ["§execute"],
+                    "stop": ["§execute", "§end"],
                 }
 
                 url = "https://api.z.ai/api/coding/paas/v4/chat/completions"
@@ -77,9 +77,11 @@ class GLM(LLM):
                     "messages": messages,
                     "temperature": self.temperature,
                     "max_tokens": self.max_tokens,
-                    "stop": ["§execute"],
+                    "stop": ["§execute", "§end"],
                     "stream": True,
                 }
+                
+                logger.debug(f"GLM request: {len(messages)} messages, first role: {messages[0].get('role') if messages else None}")
 
                 url = "https://api.z.ai/api/coding/paas/v4/chat/completions"
 
@@ -94,16 +96,22 @@ class GLM(LLM):
                         if not line.startswith("data: "):
                             continue
 
-                        data_str = line[6:]  # Remove 'data: ' prefix
+                        data_str = line[6:]
                         if data_str == "[DONE]":
+                            logger.debug("GLM stream: [DONE] received")
                             break
 
                         try:
                             chunk_data = json.loads(data_str)
-                            if chunk_data.get("choices") and chunk_data["choices"][0].get(
-                                "delta", {}
-                            ).get("content"):
-                                yield chunk_data["choices"][0]["delta"]["content"]
+                            delta = chunk_data.get("choices", [{}])[0].get("delta", {})
+                            
+                            if delta.get("content"):
+                                yield delta["content"]
+                            
+                            finish_reason = chunk_data.get("choices", [{}])[0].get("finish_reason")
+                            if finish_reason:
+                                logger.debug(f"GLM stream: finish_reason={finish_reason}")
+                                break
                         except json.JSONDecodeError:
                             continue
 

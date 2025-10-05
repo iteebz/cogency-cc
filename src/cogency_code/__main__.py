@@ -10,6 +10,7 @@ from .app import CogencyCode
 def main() -> None:
     """Main entry point."""
     provider = None
+    conv_id = None
 
     if "--openai" in sys.argv:
         sys.argv.remove("--openai")
@@ -23,6 +24,13 @@ def main() -> None:
     elif "--glm" in sys.argv:
         sys.argv.remove("--glm")
         provider = "glm"
+
+    if "--conv" in sys.argv:
+        idx = sys.argv.index("--conv")
+        if idx + 1 < len(sys.argv):
+            conv_id = sys.argv[idx + 1]
+            sys.argv.pop(idx)
+            sys.argv.pop(idx)
 
     if len(sys.argv) > 1 and sys.argv[1] == "resume":
         try:
@@ -38,7 +46,9 @@ def main() -> None:
 
     if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
         from cogency.core.agent import Agent
+        from cogency.core.config import Security
 
+        from .agent import create_agent
         from .identities import CODING_IDENTITY
         from .state import Config
 
@@ -47,18 +57,31 @@ def main() -> None:
         if provider:
             config.provider = provider
 
-        cli_instruction = (
-            "CLI ONE-SHOT MODE\n"
-            "- Treat the next user message as the full task; there will be no follow-up prompts.\n"
-            "- Answer in your first §respond message with only the information the user requested.\n"
-            "- Do not introduce yourself, list capabilities, or ask questions.\n"
-            "- Immediately emit §end after delivering the answer.\n"
-            "- Example: user says 'what is 2+2' → respond '4' then §end."
-        )
-        agent = Agent(
-            llm=config.provider, mode="auto", identity=CODING_IDENTITY, instructions=cli_instruction
-        )
-        conv_id = str(uuid.uuid4())
+        if not conv_id:
+            conv_id = str(uuid.uuid4())
+            cli_instruction = (
+                "CLI ONE-SHOT MODE\n"
+                "- Treat the next user message as the full task; there will be no follow-up prompts.\n"
+                "- Answer in your first §respond message with only the information the user requested.\n"
+                "- Do not introduce yourself, list capabilities, or ask questions.\n"
+                "- Immediately emit §end after delivering the answer.\n"
+                "- Example: user says 'what is 2+2' → respond '4' then §end."
+            )
+        else:
+            cli_instruction = ""
+        
+        if config.provider == "glm":
+            agent = create_agent(config)
+            if cli_instruction:
+                agent.instructions = cli_instruction
+        else:
+            agent = Agent(
+                llm=config.provider,
+                mode="auto",
+                identity=CODING_IDENTITY,
+                instructions=cli_instruction,
+                security=Security(access="project"),
+            )
 
         async def run_query():
             from cogency.cli.display import Renderer
@@ -68,7 +91,6 @@ def main() -> None:
             try:
                 await renderer.render_stream(stream)
             finally:
-                # Clean up LLM session
                 if hasattr(agent, "config") and hasattr(agent.config, "llm"):
                     llm = agent.config.llm
                     if llm and hasattr(llm, "close"):

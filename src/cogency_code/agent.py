@@ -15,12 +15,15 @@ def create_agent(app_config: Config) -> Agent:
 
     instructions = load_instructions()
     identity = get_identity(app_config.identity)
+    
+    model_name = _get_model_name(llm, app_config.provider)
+    identity_with_model = f"You are Cogency Code powered by {model_name}.\n\n{identity}"
 
     return Agent(
         llm=llm,
-        max_iterations=10,
+        max_iterations=100,
         security=Security(access="project"),
-        identity=identity,
+        identity=identity_with_model,
         instructions=instructions,
         mode="auto",
     )
@@ -39,3 +42,9 @@ def _create_llm(provider_name: str, app_config: Config):
 
     api_key = app_config.get_api_key(provider_name)
     return providers[provider_name](api_key=api_key)
+
+
+def _get_model_name(llm, provider: str) -> str:
+    if hasattr(llm, 'http_model'):
+        return llm.http_model
+    return provider.upper()
