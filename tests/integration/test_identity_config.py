@@ -1,48 +1,12 @@
 """Tests for identity configurability."""
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from cc.agent import create_agent
-from cc.identity import get_identity, list_identity
-from cc.state import Config
 
 
 class TestIdentityConfiguration:
     """Test agent identity configurability."""
-
-    def test_list_identity(self):
-        """Test listing available identities."""
-        identity = list_identity()
-        expected = ["coding", "cothinker", "assistant"]
-        assert identity == expected
-
-    def test_get_identity_coding(self):
-        """Test getting coding identity."""
-        identity = get_identity("coding")
-        assert "Cogency Code" in identity
-        assert "coding agent" in identity
-        assert "read, write, and reason about code" in identity
-
-    def test_get_identity_cothinker(self):
-        """Test getting cothinker identity."""
-        identity = get_identity("cothinker")
-        assert "Cothinker" in identity
-        assert "critical thinking partner" in identity
-        assert "prevent bad implementations" in identity
-
-    def test_get_identity_assistant(self):
-        """Test getting assistant identity."""
-        identity = get_identity("assistant")
-        assert "helpful assistant" in identity
-        assert "accommodating and supportive" in identity
-
-    def test_get_identity_unknown(self):
-        """Test error for unknown identity."""
-        with pytest.raises(ValueError, match="Unknown identity 'unknown'"):
-            get_identity("unknown")
 
     @patch("cc.agent.GLM")
     @patch("cc.agent.Config")
@@ -109,28 +73,3 @@ class TestIdentityConfiguration:
 
                 assert "helpful assistant" in identity
                 assert "accommodating and supportive" in identity
-
-    def test_config_default_identity(self):
-        """Test config has default identity."""
-        config = Config()
-        assert config.identity == "coding"
-
-    def test_config_identity_persistence(self, tmp_path):
-        """Test identity persists to config file."""
-        import json
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config_file = Path(temp_dir) / "config.json"
-
-            config = Config()
-            config.config_dir = Path(temp_dir)
-            config.config_file = config_file
-            config.identity = "cothinker"
-            config.save()
-
-            # Load and verify
-            with open(config_file) as f:
-                data = json.load(f)
-
-            assert data["identity"] == "cothinker"

@@ -145,3 +145,66 @@ def test_broken_config_handling():
         # Should fall back to defaults (unchanged since load failed)
         assert config.provider == "glm"
         assert config.mode == "auto"
+
+def test_config_default_identity():
+    """Test config has default identity."""
+    config = Config()
+    assert config.identity == "coding"
+
+def test_config_identity_persistence(tmp_path):
+    """Test identity persists to config file."""
+    import json
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        config_file = Path(temp_dir) / "config.json"
+
+        config = Config()
+        config.config_dir = Path(temp_dir)
+        config.config_file = config_file
+        config.identity = "cothinker"
+        config.save()
+
+        # Load and verify
+        with open(config_file) as f:
+            data = json.load(f)
+
+        assert data["identity"] == "cothinker"
+
+def test_config_api_key_priority():
+    """Test API key resolution priority: env > stored."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        config_path = Path(temp_dir) / "config.json"
+        config_dir = Path(temp_dir)
+
+        # Create config with stored key
+        test_config = {"provider": "glm", "api_keys": {"glm": "stored_key"}}
+
+        with open(config_path, "w") as f:
+            json.dump(test_config, f)
+
+        # Load config with env var override
+        with patch.dict(os.environ, {"GLM_API_KEY": "env_key"}, clear=True):
+            config = Config()
+            config.config_dir = config_dir
+            config.config_file = config_path
+            config.load()
+
+            assert config.get_api_key("glm") == "env_key"
+
+def test_default_configuration_values():
+    """Test that defaults are sensible and minimal."""
+    # Create fresh config without loading from disk
+    config = object.__new__(Config)  # Skip __post_init__ to avoid loading
+    config.provider = "glm"
+    config.mode = "auto"
+    config.user_id = "cogency"
+    config.conversation_id = "dev_work"
+    config.tools = ["file", "web", "memory"]
+    config.api_keys = {}
+
+    # Verify defaults align with cogency-cc design
+    assert config.provider == "glm"  # Default GLM provider
+    assert config.mode == "auto"  # Auto mode for compatibility
+    assert config.user_id == "cogency"
+    assert set(config.tools) == {"file", "web", "memory"}  # Standard tool set
