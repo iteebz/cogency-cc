@@ -3,7 +3,6 @@
 import os
 from pathlib import Path
 
-
 CC_FUNCTION = """
 cc() {
     if [ $# -eq 0 ]; then
@@ -18,7 +17,7 @@ cc() {
 def setup_shell() -> None:
     """Add cc function to shell rc file."""
     shell = os.environ.get("SHELL", "")
-    
+
     if "zsh" in shell:
         rc_file = Path.home() / ".zshrc"
     elif "bash" in shell:
@@ -34,7 +33,7 @@ def setup_shell() -> None:
         return
 
     content = rc_file.read_text()
-    
+
     if "cc() {" in content or "noglob cogency-code" in content:
         print(f"✓ cc function already configured in {rc_file}")
         return

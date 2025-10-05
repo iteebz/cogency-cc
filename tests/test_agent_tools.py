@@ -5,8 +5,8 @@ from unittest.mock import patch
 
 import pytest
 
-from cogency_code.agent import create_agent
-from cogency_code.state import Config
+from cc.agent import create_agent
+from cc.state import Config
 from tests.conftest import MockLLM
 
 
@@ -16,7 +16,7 @@ def test_agent_with_mock_llm():
     config.identity = "coding"
 
     # Replace the GLM provider with our mock
-    with patch("cogency_code.agent._create_llm") as mock_create:
+    with patch("cc.agent._create_llm") as mock_create:
         mock_create.return_value = MockLLM()
         agent = create_agent(config)
 
@@ -31,7 +31,7 @@ async def test_agent_tool_execution():
     config = Config(provider="mock", user_id="test")
     config.identity = "coding"
 
-    with patch("cogency_code.agent._create_llm") as mock_create:
+    with patch("cc.agent._create_llm") as mock_create:
         mock_llm = MockLLM()
         mock_create.return_value = mock_llm
 

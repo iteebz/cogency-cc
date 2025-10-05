@@ -5,9 +5,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cogency_code.agent import create_agent
-from cogency_code.identity import get_identity, list_identity
-from cogency_code.state import Config
+from cc.agent import create_agent
+from cc.identity import get_identity, list_identity
+from cc.state import Config
 
 
 class TestIdentityConfiguration:
@@ -44,8 +44,8 @@ class TestIdentityConfiguration:
         with pytest.raises(ValueError, match="Unknown identity 'unknown'"):
             get_identity("unknown")
 
-    @patch("cogency_code.agent.GLM")
-    @patch("cogency_code.agent.Config")
+    @patch("cc.agent.GLM")
+    @patch("cc.agent.Config")
     def test_agent_with_coding_identity(self, mock_config_class, mock_glm):
         """Test agent creation with coding identity."""
         mock_config = MagicMock()
@@ -56,8 +56,8 @@ class TestIdentityConfiguration:
 
         mock_glm.return_value = MagicMock()
 
-        with patch("cogency_code.agent.load_instructions", return_value=None):
-            with patch("cogency_code.agent.Agent") as mock_agent_class:
+        with patch("cc.agent.load_instructions", return_value=None):
+            with patch("cc.agent.Agent") as mock_agent_class:
                 create_agent(mock_config)
 
                 call_args = mock_agent_class.call_args
@@ -66,8 +66,8 @@ class TestIdentityConfiguration:
                 assert "Cogency Code" in identity
                 assert "coding agent" in identity
 
-    @patch("cogency_code.agent.GLM")
-    @patch("cogency_code.agent.Config")
+    @patch("cc.agent.GLM")
+    @patch("cc.agent.Config")
     def test_agent_with_cothinker_identity(self, mock_config_class, mock_glm):
         """Test agent creation with cothinker identity."""
         mock_config = MagicMock()
@@ -78,8 +78,8 @@ class TestIdentityConfiguration:
 
         mock_glm.return_value = MagicMock()
 
-        with patch("cogency_code.agent.load_instructions", return_value=None):
-            with patch("cogency_code.agent.Agent") as mock_agent_class:
+        with patch("cc.agent.load_instructions", return_value=None):
+            with patch("cc.agent.Agent") as mock_agent_class:
                 create_agent(mock_config)
 
                 call_args = mock_agent_class.call_args
@@ -88,8 +88,8 @@ class TestIdentityConfiguration:
                 assert "Cothinker" in identity
                 assert "critical thinking partner" in identity
 
-    @patch("cogency_code.agent.GLM")
-    @patch("cogency_code.agent.Config")
+    @patch("cc.agent.GLM")
+    @patch("cc.agent.Config")
     def test_agent_with_assistant_identity(self, mock_config_class, mock_glm):
         """Test agent creation with assistant identity."""
         mock_config = MagicMock()
@@ -100,8 +100,8 @@ class TestIdentityConfiguration:
 
         mock_glm.return_value = MagicMock()
 
-        with patch("cogency_code.agent.load_instructions", return_value=None):
-            with patch("cogency_code.agent.Agent") as mock_agent_class:
+        with patch("cc.agent.load_instructions", return_value=None):
+            with patch("cc.agent.Agent") as mock_agent_class:
                 create_agent(mock_config)
 
                 call_args = mock_agent_class.call_args

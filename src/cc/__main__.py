@@ -4,9 +4,8 @@ import asyncio
 import sys
 import uuid
 
-from cogency.cli.display import Renderer
-
 from .agent import create_agent
+from .cli.display import Renderer
 from .conversations import get_last_conversation
 from .instructions import find_project_root
 from .state import Config

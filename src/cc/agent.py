@@ -12,15 +12,15 @@ from .state import Config
 
 def create_agent(app_config: Config, cli_instruction: str = "") -> Agent:
     from cogency.tools import tools
-    
+
     llm = _create_llm(app_config.provider, app_config)
 
     instructions = cli_instruction or load_instructions()
     identity = get_identity(app_config.identity)
-    
+
     model_name = _get_model_name(llm, app_config.provider)
     identity_with_model = f"You are Cogency Code powered by {model_name}.\n\n{identity}"
-    
+
     tools = tools.category(["file", "system", "web"]) if cli_instruction else None
     max_iterations = 22
     profile = not cli_instruction
@@ -53,6 +53,6 @@ def _create_llm(provider_name: str, app_config: Config):
 
 
 def _get_model_name(llm, provider: str) -> str:
-    if hasattr(llm, 'http_model'):
+    if hasattr(llm, "http_model"):
         return llm.http_model
     return provider.upper()

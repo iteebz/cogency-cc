@@ -78,8 +78,10 @@ class GLM(LLM):
                     "max_tokens": self.max_tokens,
                     "stream": True,
                 }
-                
-                logger.debug(f"GLM request: {len(messages)} messages, first role: {messages[0].get('role') if messages else None}")
+
+                logger.debug(
+                    f"GLM request: {len(messages)} messages, first role: {messages[0].get('role') if messages else None}"
+                )
 
                 url = "https://api.z.ai/api/coding/paas/v4/chat/completions"
 
@@ -102,10 +104,10 @@ class GLM(LLM):
                         try:
                             chunk_data = json.loads(data_str)
                             delta = chunk_data.get("choices", [{}])[0].get("delta", {})
-                            
+
                             if delta.get("content"):
                                 yield delta["content"]
-                            
+
                             finish_reason = chunk_data.get("choices", [{}])[0].get("finish_reason")
                             if finish_reason:
                                 logger.debug(f"GLM stream: finish_reason={finish_reason}")

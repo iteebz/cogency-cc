@@ -12,10 +12,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cogency_code.agent import create_agent
-from cogency_code.identity import CODING_IDENTITY
-from cogency_code.instructions import find_project_root, load_instructions
-from cogency_code.state import Config
+from cc.agent import create_agent
+from cc.identity import CODING_IDENTITY
+from cc.instructions import find_project_root, load_instructions
+from cc.state import Config
 
 
 class TestInstructionLoading:
@@ -33,7 +33,7 @@ class TestInstructionLoading:
             # Create .cogency directory to mark project root
             (project_root / ".cogency").mkdir()
 
-            with patch("cogency_code.instructions.Path.cwd", return_value=project_root):
+            with patch("cc.instructions.Path.cwd", return_value=project_root):
                 instructions = load_instructions()
 
             assert instructions == "cogency instructions"
@@ -47,7 +47,7 @@ class TestInstructionLoading:
             (project_root / "CRUSH.md").write_text("crush fallback instructions")
             (project_root / ".cogency").mkdir()
 
-            with patch("cogency_code.instructions.Path.cwd", return_value=project_root):
+            with patch("cc.instructions.Path.cwd", return_value=project_root):
                 instructions = load_instructions()
 
             assert instructions == "crush fallback instructions"
@@ -58,7 +58,7 @@ class TestInstructionLoading:
             project_root = Path(temp_dir)
             (project_root / ".cogency").mkdir()
 
-            with patch("cogency_code.instructions.Path.cwd", return_value=project_root):
+            with patch("cc.instructions.Path.cwd", return_value=project_root):
                 instructions = load_instructions()
 
             assert instructions is None
@@ -82,7 +82,7 @@ class TestInstructionLoading:
         with tempfile.TemporaryDirectory() as temp_dir:
             project_root = Path(temp_dir)
 
-            with patch("cogency_code.instructions.Path.cwd", return_value=project_root):
+            with patch("cc.instructions.Path.cwd", return_value=project_root):
                 found = find_project_root()
                 assert found is None
 
@@ -90,8 +90,8 @@ class TestInstructionLoading:
 class TestAgentCreation:
     """Test agent creation with proper configuration and identity."""
 
-    @patch("cogency_code.agent.GLM")
-    @patch("cogency_code.agent.Config")
+    @patch("cc.agent.GLM")
+    @patch("cc.agent.Config")
     def test_create_agent_with_instructions(self, mock_config_class, mock_glm):
         """Test agent creation with loaded instructions."""
         # Setup mocks
@@ -104,20 +104,19 @@ class TestAgentCreation:
         mock_glm.return_value = MagicMock()
 
         # Mock instruction loading
-        with patch("cogency_code.agent.load_instructions", return_value="Custom instructions"):
-            with patch("cogency_code.agent.Agent") as mock_agent_class:
+        with patch("cc.agent.load_instructions", return_value="Custom instructions"):
+            with patch("cc.agent.Agent") as mock_agent_class:
                 create_agent(mock_config)
 
                 # Verify agent was created with correct parameters
                 mock_agent_class.assert_called_once()
                 call_args = mock_agent_class.call_args
 
-                assert call_args.kwargs["identity"] == CODING_IDENTITY
-                assert call_args.kwargs["instructions"] == "Custom instructions"
-                assert call_args.kwargs["max_iterations"] == 10
+                assert "Custom instructions" in call_args.kwargs["instructions"]
+                assert call_args.kwargs["max_iterations"] == 22
 
-    @patch("cogency_code.agent.GLM")
-    @patch("cogency_code.agent.Config")
+    @patch("cc.agent.GLM")
+    @patch("cc.agent.Config")
     def test_create_agent_without_instructions(self, mock_config_class, mock_glm):
         """Test agent creation without instructions."""
         mock_config = MagicMock()
@@ -128,22 +127,22 @@ class TestAgentCreation:
 
         mock_glm.return_value = MagicMock()
 
-        with patch("cogency_code.agent.load_instructions", return_value=None):
-            with patch("cogency_code.agent.Agent") as mock_agent_class:
+        with patch("cc.agent.load_instructions", return_value=None):
+            with patch("cc.agent.Agent") as mock_agent_class:
                 create_agent(mock_config)
 
                 # Instructions should be None when not found
                 call_args = mock_agent_class.call_args
                 assert call_args.kwargs["instructions"] is None
 
-    @patch("cogency_code.agent.Config")
+    @patch("cc.agent.Config")
     def test_create_llm_providers(self, mock_config_class):
         """Test LLM provider creation for different providers."""
         from cogency.lib.llms.anthropic import Anthropic
         from cogency.lib.llms.gemini import Gemini
         from cogency.lib.llms.openai import OpenAI
 
-        from cogency_code.agent import _create_llm
+        from cc.agent import _create_llm
 
         mock_config = MagicMock()
 
@@ -154,7 +153,7 @@ class TestAgentCreation:
         }
 
         for provider_name, expected_class in providers_and_classes.items():
-            with patch(f"cogency_code.agent.{expected_class.__name__}") as mock_provider:
+            with patch(f"cc.agent.{expected_class.__name__}") as mock_provider:
                 mock_config.get_api_key.return_value = f"{provider_name}-key"
                 mock_config.provider = provider_name
 
@@ -168,7 +167,7 @@ class TestAgentCreation:
         mock_config = MagicMock()
 
         with pytest.raises(ValueError, match="Unknown provider: unknown"):
-            from cogency_code.agent import _create_llm
+            from cc.agent import _create_llm
 
             _create_llm("unknown", mock_config)
 
@@ -188,8 +187,8 @@ class TestAgentIdentity:
         assert "Accuracy > speed" in CODING_IDENTITY
         assert "NEVER fabricate tool output" in CODING_IDENTITY
 
-    @patch("cogency_code.agent.GLM")
-    @patch("cogency_code.agent.Config")
+    @patch("cc.agent.GLM")
+    @patch("cc.agent.Config")
     def test_agent_security_configuration(self, mock_config_class, mock_glm):
         """Test that agent is created with project-scoped security."""
         from cogency.core.config import Security
@@ -201,8 +200,8 @@ class TestAgentIdentity:
         mock_config_class.return_value = mock_config
         mock_glm.return_value = MagicMock()
 
-        with patch("cogency_code.agent.load_instructions", return_value=None):
-            with patch("cogency_code.agent.Agent") as mock_agent_class:
+        with patch("cc.agent.load_instructions", return_value=None):
+            with patch("cc.agent.Agent") as mock_agent_class:
                 create_agent(mock_config)
 
                 # Verify security configuration

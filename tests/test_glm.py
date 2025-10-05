@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from cogency_code.llms.glm import GLM
+from cc.llms.glm import GLM
 
 
 def test_glm_initialization():
@@ -14,7 +14,7 @@ def test_glm_initialization():
     assert glm.api_key is not None
     assert glm.http_model == "GLM-4.6"
     assert glm.temperature == 0.7
-    assert glm.max_tokens == 1024
+    assert glm.max_tokens == 4096
 
 
 def test_glm_initialization_with_custom_key():

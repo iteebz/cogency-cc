@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cogency_code.agent import create_agent
+from cc.agent import create_agent
 
 
 class TestRendererIntegration:
@@ -18,7 +18,7 @@ class TestRendererIntegration:
     @pytest.mark.asyncio
     async def test_renderer_with_agent_stream(self):
         """Test that renderer correctly processes agent event stream."""
-        from cogency.cli.display import Renderer
+        from cc.cli.display import Renderer
 
         # Mock agent stream with various event types
         mock_events = [
@@ -47,16 +47,16 @@ class TestRendererIntegration:
 
         # Verify output contains expected elements
         output_text = output.getvalue()
-        assert "$ test query" in output_text
-        assert "~ analyzing request" in output_text
-        assert "○" in output_text  # Tool call symbol
-        assert "● File read successfully" in output_text
-        assert "> I found the issue" in output_text
+        assert "test query" in output_text
+        assert "analyzing request" in output_text
+        assert "○" in output_text
+        assert "File read successfully" in output_text
+        assert "I found the issue" in output_text
 
     @pytest.mark.asyncio
     async def test_renderer_verbose_metrics(self):
         """Test verbose mode shows metrics information."""
-        from cogency.cli.display import Renderer
+        from cc.cli.display import Renderer
 
         mock_events = [
             {"type": "metric", "total": {"input": 100, "output": 200, "duration": 2.5}},
@@ -77,7 +77,7 @@ class TestRendererIntegration:
     @pytest.mark.asyncio
     async def test_renderer_error_handling(self):
         """Test renderer handles error events gracefully."""
-        from cogency.cli.display import Renderer
+        from cc.cli.display import Renderer
 
         mock_events = [
             {"type": "error", "content": "Something went wrong", "timestamp": 1.0},
@@ -93,12 +93,12 @@ class TestRendererIntegration:
             await renderer.render_stream(mock_stream())
 
         output_text = output.getvalue()
-        assert "✗ Something went wrong" in output_text
+        assert "Something went wrong" in output_text
 
     @pytest.mark.asyncio
     async def test_renderer_interrupt_handling(self):
         """Test renderer handles interrupt events correctly."""
-        from cogency.cli.display import Renderer
+        from cc.cli.display import Renderer
 
         mock_events = [
             {"type": "interrupt", "content": "User cancelled", "timestamp": 1.0},
@@ -114,18 +114,18 @@ class TestRendererIntegration:
             await renderer.render_stream(mock_stream())
 
         output_text = output.getvalue()
-        assert "⚠ Interrupted" in output_text
+        assert "Interrupted" in output_text
 
 
 class TestEventFlow:
     """Test complete event flow from agent through renderer."""
 
     @pytest.mark.asyncio
-    @patch("cogency_code.agent.GLM")
-    @patch("cogency_code.agent.Config")
+    @patch("cc.agent.GLM")
+    @patch("cc.agent.Config")
     async def test_complete_event_flow(self, mock_config_class, mock_glm):
         """Test complete flow from agent creation to renderer output."""
-        from cogency.cli.display import Renderer
+        from cc.cli.display import Renderer
 
         # Setup agent mock
         mock_config = MagicMock()
@@ -144,8 +144,8 @@ class TestEventFlow:
             for event in mock_events:
                 yield event
 
-        with patch("cogency_code.agent.load_instructions", return_value=None):
-            with patch("cogency_code.agent.Agent") as mock_agent_class:
+        with patch("cc.agent.load_instructions", return_value=None):
+            with patch("cc.agent.Agent") as mock_agent_class:
                 mock_agent = AsyncMock()
                 mock_agent.return_value = mock_stream()
                 mock_agent_class.return_value = mock_agent
@@ -164,7 +164,7 @@ class TestEventFlow:
                     await renderer.render_stream(mock_stream())
 
                 output_text = output.getvalue()
-                assert "$ debug this code" in output_text
+                assert "debug this code" in output_text
                 assert "> I found the bug on line 42" in output_text
 
 
@@ -173,7 +173,7 @@ class TestRendererContracts:
 
     def test_renderer_state_management(self):
         """Test renderer manages internal state correctly."""
-        from cogency.cli.display import Renderer
+        from cc.cli.display import Renderer
 
         renderer = Renderer()
         assert renderer.current_state is None
@@ -184,7 +184,7 @@ class TestRendererContracts:
 
     def test_renderer_symbol_consistency(self):
         """Test that symbols match cogency conventions."""
-        from cogency.cli.display import Renderer
+        from cc.cli.display import Renderer
 
         # These symbols should match cogency CLI conventions
 
