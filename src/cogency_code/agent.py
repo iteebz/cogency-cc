@@ -10,23 +10,30 @@ from .llms.glm import GLM
 from .state import Config
 
 
-def create_agent(app_config: Config) -> Agent:
+def create_agent(app_config: Config, cli_instruction: str = "") -> Agent:
+    from cogency.tools import tools as get_tools
+    
     llm = _create_llm(app_config.provider, app_config)
 
-    instructions = load_instructions()
+    instructions = cli_instruction or load_instructions()
     identity = get_identity(app_config.identity)
     
     model_name = _get_model_name(llm, app_config.provider)
     identity_with_model = f"You are Cogency Code powered by {model_name}.\n\n{identity}"
+    
+    tools = get_tools(["file", "shell", "web"]) if cli_instruction else None
+    max_iterations = 20 if cli_instruction else 100
+    profile = not cli_instruction
 
     return Agent(
         llm=llm,
-        max_iterations=100,
+        max_iterations=max_iterations,
         security=Security(access="project"),
         identity=identity_with_model,
         instructions=instructions,
+        tools=tools,
         mode="auto",
-        profile=True,
+        profile=profile,
     )
 
 

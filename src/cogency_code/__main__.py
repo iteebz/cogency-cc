@@ -11,6 +11,7 @@ def main() -> None:
     """Main entry point."""
     provider = None
     conv_id = None
+    force_new = False
 
     if "--openai" in sys.argv:
         sys.argv.remove("--openai")
@@ -24,6 +25,10 @@ def main() -> None:
     elif "--glm" in sys.argv:
         sys.argv.remove("--glm")
         provider = "glm"
+
+    if "--new" in sys.argv:
+        sys.argv.remove("--new")
+        force_new = True
 
     if "--conv" in sys.argv:
         idx = sys.argv.index("--conv")
@@ -44,6 +49,20 @@ def main() -> None:
             sys.exit(0)
         return
 
+    if len(sys.argv) > 1 and sys.argv[1] == "--profile":
+        import json
+        from pathlib import Path
+
+        profile_path = Path.cwd() / ".cogency" / "profile.json"
+        if not profile_path.exists():
+            print("No profile found")
+            sys.exit(0)
+
+        with open(profile_path) as f:
+            profile = json.load(f)
+            print(json.dumps(profile, indent=2))
+        sys.exit(0)
+
     if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
         from cogency.core.agent import Agent
         from cogency.core.config import Security
@@ -52,14 +71,29 @@ def main() -> None:
         from .identities import CODING_IDENTITY
         from .state import Config
 
+        from .conversations import get_last_conversation
+        from .instructions import find_project_root
+
         query = " ".join(sys.argv[1:])
         config = Config(user_id="cogency")
         if provider:
             config.provider = provider
 
+        resuming = False
+        if not conv_id and not force_new:
+            root = find_project_root()
+            if root:
+                conv_id = get_last_conversation(str(root))
+                if conv_id:
+                    resuming = True
+
         if not conv_id:
             conv_id = str(uuid.uuid4())
-            cli_instruction = (
+
+        cli_instruction = (
+            ""
+            if resuming
+            else (
                 "CLI ONE-SHOT MODE\n"
                 "- Treat the next user message as the full task; there will be no follow-up prompts.\n"
                 "- Answer in your first §respond message with only the information the user requested.\n"
@@ -67,13 +101,10 @@ def main() -> None:
                 "- Immediately emit §end after delivering the answer.\n"
                 "- Example: user says 'what is 2+2' → respond '4' then §end."
             )
-        else:
-            cli_instruction = ""
+        )
         
         if config.provider == "glm":
-            agent = create_agent(config)
-            if cli_instruction:
-                agent.instructions = cli_instruction
+            agent = create_agent(config, cli_instruction)
         else:
             agent = Agent(
                 llm=config.provider,

@@ -27,6 +27,8 @@ packages = [
 
 [tool.poetry.scripts]
 cogency-code = "cogency_code.__main__:main"
+cc = "cogency_code.__main__:main"
+cc-setup = "cogency_code.setup:setup_shell"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<4.0"

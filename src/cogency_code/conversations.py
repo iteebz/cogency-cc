@@ -65,6 +65,29 @@ async def list_conversations(base_dir: str = None, limit: int = 10) -> list[dict
     return await asyncio.get_event_loop().run_in_executor(None, _sync_query)
 
 
+def get_last_conversation(base_dir: str = None) -> str | None:
+    """Get most recent conversation ID for current project."""
+    if base_dir:
+        db_path = Path(base_dir) / ".cogency" / "store.db"
+    else:
+        db_path = Path(".cogency/store.db")
+
+    if not db_path.exists():
+        return None
+
+    with sqlite3.connect(db_path) as db:
+        cursor = db.execute(
+            """
+            SELECT conversation_id
+            FROM messages
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """
+        )
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+
 def _format_time_ago(timestamp: float) -> str:
     """Format timestamp as relative time."""
     seconds = time.time() - timestamp
