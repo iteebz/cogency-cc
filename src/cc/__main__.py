@@ -103,9 +103,9 @@ def main() -> None:
 
 
 async def run_one_shot(agent, query: str, conv_id: str):
-    from cogency.lib.storage import Storage
+    from cogency.lib.storage import SQLite
 
-    storage = Storage()
+    storage = SQLite()
     msgs = await storage.load_messages(conv_id, "cogency")
 
     renderer = Renderer(messages=msgs)
