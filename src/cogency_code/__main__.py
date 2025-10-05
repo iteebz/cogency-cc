@@ -1,18 +1,23 @@
-"""Entry point for cogency-code TUI application."""
+"""Entry point for cogency-code CLI application."""
 
 import asyncio
 import sys
 import uuid
 
-from .app import CogencyCode
+from cogency.cli.display import Renderer
+
+from .agent import create_agent
+from .conversations import get_last_conversation
+from .instructions import find_project_root
+from .state import Config
 
 
 def main() -> None:
-    """Main entry point."""
     provider = None
     conv_id = None
     force_new = False
     chunks = False
+    interactive = False
 
     if "--openai" in sys.argv:
         sys.argv.remove("--openai")
@@ -35,6 +40,13 @@ def main() -> None:
         sys.argv.remove("--chunks")
         chunks = True
 
+    if "--interactive" in sys.argv or "-i" in sys.argv:
+        if "--interactive" in sys.argv:
+            sys.argv.remove("--interactive")
+        if "-i" in sys.argv:
+            sys.argv.remove("-i")
+        interactive = True
+
     if "--conv" in sys.argv:
         idx = sys.argv.index("--conv")
         if idx + 1 < len(sys.argv):
@@ -42,19 +54,7 @@ def main() -> None:
             sys.argv.pop(idx)
             sys.argv.pop(idx)
 
-    if len(sys.argv) > 1 and sys.argv[1] == "resume":
-        try:
-            app = (
-                CogencyCode(llm_provider=provider, mode="resume_selection")
-                if provider
-                else CogencyCode(mode="resume_selection")
-            )
-            app.run()
-        except KeyboardInterrupt:
-            sys.exit(0)
-        return
-
-    if len(sys.argv) > 1 and sys.argv[1] == "--profile":
+    if "--profile" in sys.argv:
         import json
         from pathlib import Path
 
@@ -68,33 +68,29 @@ def main() -> None:
             print(json.dumps(profile, indent=2))
         sys.exit(0)
 
-    if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
-        from cogency.core.agent import Agent
-        from cogency.core.config import Security
+    config = Config(user_id="cogency")
+    if provider:
+        config.provider = provider
 
-        from .agent import create_agent
-        from .identity import CODING_IDENTITY
-        from .state import Config
+    resuming = False
+    if not conv_id and not force_new:
+        root = find_project_root()
+        if root:
+            conv_id = get_last_conversation(str(root))
+            if conv_id:
+                resuming = True
 
-        from .conversations import get_last_conversation
-        from .instructions import find_project_root
+    if not conv_id:
+        conv_id = str(uuid.uuid4())
+
+    if interactive:
+        asyncio.run(run_interactive(config, conv_id, chunks))
+    else:
+        if len(sys.argv) <= 1:
+            print("Usage: cc <query> [--glm|--claude|--gemini|--openai] [--chunks] [--new] [-i|--interactive]")
+            sys.exit(1)
 
         query = " ".join(sys.argv[1:])
-        config = Config(user_id="cogency")
-        if provider:
-            config.provider = provider
-
-        resuming = False
-        if not conv_id and not force_new:
-            root = find_project_root()
-            if root:
-                conv_id = get_last_conversation(str(root))
-                if conv_id:
-                    resuming = True
-
-        if not conv_id:
-            conv_id = str(uuid.uuid4())
-
         cli_instruction = (
             ""
             if resuming
@@ -107,42 +103,54 @@ def main() -> None:
                 "- Example: user says 'what is 2+2' → respond '4' then §end."
             )
         )
-        
-        if config.provider == "glm":
-            agent = create_agent(config, cli_instruction)
-        else:
-            agent = Agent(
-                llm=config.provider,
-                mode="auto",
-                identity=CODING_IDENTITY,
-                instructions=cli_instruction,
-                security=Security(access="project"),
-            )
 
-        async def run_query():
-            from cogency.cli.display import Renderer
+        agent = create_agent(config, cli_instruction)
+        asyncio.run(run_one_shot(agent, query, conv_id, chunks))
 
-            renderer = Renderer()
-            stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=chunks)
-            try:
-                await renderer.render_stream(stream)
-            finally:
-                if hasattr(agent, "config") and hasattr(agent.config, "llm"):
-                    llm = agent.config.llm
-                    if llm and hasattr(llm, "close"):
-                        await llm.close()
 
-        asyncio.run(run_query())
-        return
+async def run_one_shot(agent, query: str, conv_id: str, chunks: bool):
+    renderer = Renderer()
+    stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=chunks)
+    try:
+        await renderer.render_stream(stream)
+    finally:
+        if hasattr(agent, "config") and hasattr(agent.config, "llm"):
+            llm = agent.config.llm
+            if llm and hasattr(llm, "close"):
+                await llm.close()
+
+
+async def run_interactive(config: Config, conv_id: str, chunks: bool):
+    agent = create_agent(config)
+    renderer = Renderer()
+
+    print(f"cc interactive mode | {config.provider} | {conv_id[:8]}")
+    print("Type 'exit' or Ctrl+D to quit\n")
 
     try:
-        app = CogencyCode(llm_provider=provider) if provider else CogencyCode()
-        app.run()
-    except KeyboardInterrupt:
-        sys.exit(0)
-    except Exception as e:
-        print(f"Error: {e}")
-        sys.exit(1)
+        while True:
+            try:
+                query = input("$ ")
+                if not query.strip():
+                    continue
+                if query.lower() in ("exit", "quit"):
+                    break
+
+                stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=chunks)
+                await renderer.render_stream(stream)
+                print()
+
+            except EOFError:
+                break
+            except KeyboardInterrupt:
+                print("\n^C")
+                continue
+
+    finally:
+        if hasattr(agent, "config") and hasattr(agent.config, "llm"):
+            llm = agent.config.llm
+            if llm and hasattr(llm, "close"):
+                await llm.close()
 
 
 if __name__ == "__main__":

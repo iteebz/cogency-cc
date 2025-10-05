@@ -5,11 +5,11 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry]
 name = "cogency-code"
 version = "0.1.0"
-description = "TUI coding agent built with cogency"
+description = "CLI coding agent built with cogency"
 authors = ["Tyson Chan <tyson.chan@proton.me>"]
 readme = "README.md"
 license = "Apache-2.0"
-keywords = ["ai", "agents", "tui", "terminal", "cogency", "textual"]
+keywords = ["ai", "agents", "cli", "terminal", "cogency"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -32,9 +32,7 @@ cc-setup = "cogency_code.setup:setup_shell"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<4.0"
-textual = "^6.2.1"
 aiohttp = "^3.9.0"
-pyperclip = "^1.8.2"
 cogency = {path = "../cogency"}
 
 [tool.poetry.group.dev.dependencies]

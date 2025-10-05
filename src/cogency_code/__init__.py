@@ -1,8 +1,7 @@
-"""cogency-code - Reference grade TUI agent."""
+"""cogency-code - Reference grade CLI agent."""
 
 __version__ = "0.1.0"
 
-from .app import CogencyCode
 from .state import Config
 
-__all__ = ["CogencyCode", "Config"]
+__all__ = ["Config"]
