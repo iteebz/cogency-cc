@@ -33,6 +33,7 @@ class Config:
     tools: list[str] = field(default_factory=lambda: ["file", "web", "memory"])
     api_keys: dict[str, str] = field(default_factory=dict)
     identity: str = field(default_factory=lambda: "coding")  # NEW: identity configuration
+    token_limit: int = 100000  # Token limit for percentage calculation
 
     config_dir: Path = field(default_factory=lambda: _default_config_dir())
     config_file: Path = field(init=False)
@@ -82,6 +83,7 @@ class Config:
             "tools": self.tools,
             "api_keys": self.api_keys,
             "identity": self.identity,
+            "token_limit": self.token_limit,
         }
 
         with open(self.config_file, "w", encoding="utf-8") as f:

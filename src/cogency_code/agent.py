@@ -4,14 +4,14 @@ from cogency.lib.llms.anthropic import Anthropic
 from cogency.lib.llms.gemini import Gemini
 from cogency.lib.llms.openai import OpenAI
 
-from .identities import get_identity
+from .identity import get_identity
 from .instructions import load_instructions
 from .llms.glm import GLM
 from .state import Config
 
 
 def create_agent(app_config: Config, cli_instruction: str = "") -> Agent:
-    from cogency.tools import tools as get_tools
+    from cogency.tools import tools
     
     llm = _create_llm(app_config.provider, app_config)
 
@@ -21,8 +21,8 @@ def create_agent(app_config: Config, cli_instruction: str = "") -> Agent:
     model_name = _get_model_name(llm, app_config.provider)
     identity_with_model = f"You are Cogency Code powered by {model_name}.\n\n{identity}"
     
-    tools = get_tools(["file", "shell", "web"]) if cli_instruction else None
-    max_iterations = 20 if cli_instruction else 100
+    tools = tools.category(["file", "system", "web"]) if cli_instruction else None
+    max_iterations = 22
     profile = not cli_instruction
 
     return Agent(

@@ -195,11 +195,11 @@ def render_event(event: Event) -> RenderableType:
         case "respond":
             return Text(f"> {event['content']}", style="bold")
         case "call":
-            # Parse tool call, format with tools/format.py
-            from cogency.tools.format import format_call_human
+            from cogency.tools import tools
             from cogency.tools.parse import parse_tool_call
             call = parse_tool_call(event["content"])
-            action = format_call_human(call)
+            tool = tools.get(call.name)
+            action = tool.describe(call.args) if tool else f"Tool {call.name} not available"
             return Text(f"○ {action}", style="cyan")
         case "result":
             outcome = event["payload"]["outcome"]

@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from cogency_code.agent import create_agent
-from cogency_code.identities import CODING_IDENTITY
+from cogency_code.identity import CODING_IDENTITY
 from cogency_code.instructions import find_project_root, load_instructions
 from cogency_code.state import Config
 

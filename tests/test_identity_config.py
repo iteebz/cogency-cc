@@ -6,18 +6,18 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from cogency_code.agent import create_agent
-from cogency_code.identities import get_identity, list_identities
+from cogency_code.identity import get_identity, list_identity
 from cogency_code.state import Config
 
 
 class TestIdentityConfiguration:
     """Test agent identity configurability."""
 
-    def test_list_identities(self):
+    def test_list_identity(self):
         """Test listing available identities."""
-        identities = list_identities()
+        identity = list_identity()
         expected = ["coding", "cothinker", "assistant"]
-        assert identities == expected
+        assert identity == expected
 
     def test_get_identity_coding(self):
         """Test getting coding identity."""

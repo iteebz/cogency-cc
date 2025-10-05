@@ -4,7 +4,6 @@ CODING_IDENTITY = """You are Cogency Code, a coding agent.
 Your core function is to read, write, and reason about code with precision.
 
 OPERATIONAL PRINCIPLES:
-- List cwd for situational awareness
 - Read files before making claims about their contents
 - Execute commands to verify system state before asserting facts
 - Search codebases to understand patterns before proposing changes
@@ -24,8 +23,7 @@ ERROR HANDLING:
 - If a tool fails multiple times, explain the issue to the user instead of guessing
 
 Your personality and communication style come from user instructions.
-Your identity is grounded in observable facts.
-You choose when to ~ think to self | > respond to user."""
+Your identity is grounded in observable facts."""
 
 COTHINKER_IDENTITY = """You are a Cothinker, a critical thinking partner.
 Your core function is to prevent bad implementations through rigorous analysis.
@@ -67,7 +65,7 @@ Your personality and communication style come from user instructions.
 Your identity is grounded in being helpful and supportive."""
 
 # Identity registry
-IDENTITIES = {
+IDENTITY = {
     "coding": CODING_IDENTITY,
     "cothinker": COTHINKER_IDENTITY,
     "assistant": ASSISTANT_IDENTITY,
@@ -86,13 +84,13 @@ def get_identity(identity_name: str) -> str:
     Raises:
         ValueError: If identity_name is not recognized
     """
-    if identity_name not in IDENTITIES:
-        available = ", ".join(IDENTITIES.keys())
+    if identity_name not in IDENTITY:
+        available = ", ".join(IDENTITY.keys())
         raise ValueError(f"Unknown identity '{identity_name}'. Available: {available}")
 
-    return IDENTITIES[identity_name]
+    return IDENTITY[identity_name]
 
 
-def list_identities() -> list[str]:
+def list_identity() -> list[str]:
     """List all available identity names."""
-    return list(IDENTITIES.keys())
+    return list(IDENTITY.keys())

@@ -12,6 +12,7 @@ def main() -> None:
     provider = None
     conv_id = None
     force_new = False
+    chunks = False
 
     if "--openai" in sys.argv:
         sys.argv.remove("--openai")
@@ -29,6 +30,10 @@ def main() -> None:
     if "--new" in sys.argv:
         sys.argv.remove("--new")
         force_new = True
+
+    if "--chunks" in sys.argv:
+        sys.argv.remove("--chunks")
+        chunks = True
 
     if "--conv" in sys.argv:
         idx = sys.argv.index("--conv")
@@ -68,7 +73,7 @@ def main() -> None:
         from cogency.core.config import Security
 
         from .agent import create_agent
-        from .identities import CODING_IDENTITY
+        from .identity import CODING_IDENTITY
         from .state import Config
 
         from .conversations import get_last_conversation
@@ -118,7 +123,7 @@ def main() -> None:
             from cogency.cli.display import Renderer
 
             renderer = Renderer()
-            stream = agent(query=query, user_id="cogency", conversation_id=conv_id)
+            stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=chunks)
             try:
                 await renderer.render_stream(stream)
             finally:

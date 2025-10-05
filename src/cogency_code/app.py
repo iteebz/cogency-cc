@@ -117,7 +117,7 @@ class CogencyCode(App):
 
     def compose(self) -> ComposeResult:
         yield Header(
-            model_name=self.llm_provider.upper(), session_id=self.conversation_id, mode=self.mode
+            model_name=self.llm_provider.upper(), session_id=self.conversation_id, mode=self.mode, config=self.config
         )
         yield StreamView()
         yield Footer()
@@ -147,6 +147,7 @@ class CogencyCode(App):
                     model_name=self.llm_provider.upper(),
                     session_id=self.conversation_id,
                     mode=self.mode,
+                    config=self.config,
                 )
 
             storage = default_storage()
@@ -154,8 +155,17 @@ class CogencyCode(App):
                 conversation_id=session_id, user_id=self.user_id, exclude=["metrics", "chunk"]
             )
 
+            # Temporarily disable auto-scrolling while loading messages
+            original_scroll_end = self.stream_view.scroll_end
+            self.stream_view.scroll_end = lambda animate=False: None
+
+            # Add all messages
             for msg in messages:
                 await self.stream_view.add_event(msg)
+
+            # Restore auto-scrolling and scroll to top
+            self.stream_view.scroll_end = original_scroll_end
+            self.stream_view.scroll_to(0, 0, animate=False)
         else:
             await self.stream_view.add_event(
                 {
@@ -302,6 +312,7 @@ class CogencyCode(App):
                     model_name=self.llm_provider.upper(),
                     session_id=self.conversation_id,
                     mode=self.mode,
+                    config=self.config,
                 )
 
             if hasattr(self, "stream_view"):

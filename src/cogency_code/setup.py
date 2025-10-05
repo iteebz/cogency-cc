@@ -7,9 +7,9 @@ from pathlib import Path
 CC_FUNCTION = """
 cc() {
     if [ $# -eq 0 ]; then
-        cogency-code "$(cat)"
+        cogency-code --chunks "$(cat)"
     else
-        noglob cogency-code "$@"
+        noglob cogency-code --chunks "$@"
     fi
 }
 """
