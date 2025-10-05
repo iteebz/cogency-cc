@@ -19,297 +19,275 @@ class Renderer:
     def __init__(
         self,
         verbose: bool = False,
-        model: str | None = None,
-        identity: str | None = None,
         messages: list | None = None,
         llm=None,
         conv_id: str | None = None,
         summaries: list | None = None,
     ):
         self.verbose = verbose
-        self.current_state = None
-        self.model = model
-        self.identity = identity
         self.messages = messages or []
         self.summaries = summaries or []
-        self.header_shown = False
-        self.tool_count = 0
-        self.last_metric = None
-        self.pending_call = None
-        self.spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-        self.spinner_index = 0
-        self.spinner_task = None
-        self.first_chunk = True
-        self.accumulator = ""
         self.llm = llm
         self.conv_id = conv_id
+
+        self.state = None
+        self.header_shown = False
+        self.first_chunk = True
+        self.pending_call = None
+        self.spinner_task = None
+        self.thinking_task = None
         self.turn_start = None
         self.turn_events = []
-        self.turn_tool_count = 0
+        self.turn_tools = 0
 
-    async def render_stream(self, agent_stream):
+    async def render_stream(self, stream):
         self.turn_start = time.time()
-        async for event in agent_stream:
+
+        async for event in stream:
             self.turn_events.append(event)
+
             if not self.header_shown:
-                if self.summaries:
-                    print(f"{C.gray}context:{C.R}")
-                    for summary in self.summaries:
-                        print(f"{C.gray}  {summary['summary']}{C.R}")
-                    print()
-
-                parts = []
-                if self.messages:
-                    msg_count = len(self.messages)
-                    parts.append(f"{msg_count} msg{'s' if msg_count != 1 else ''}")
-
-                    call_count = sum(1 for m in self.messages if m.get("type") == "call")
-                    if call_count:
-                        parts.append(f"{call_count} call{'s' if call_count != 1 else ''}")
-
-                    last_metrics = self._get_last_metrics()
-                    if last_metrics:
-                        tok_in = last_metrics.get("input", 0)
-                        tok_out = last_metrics.get("output", 0)
-                        parts.append(f"{tok_in}→{tok_out} tok")
-
-                if parts:
-                    print(f"{C.gray}» " + " | ".join(parts) + f"{C.R}")
-
+                self._render_header()
                 self.header_shown = True
-            match event["type"]:
-                case "user":
-                    if event["content"]:
-                        print(f"{C.gray}---{C.R}\n{C.cyan}${C.R} {event['content']}")
-                        self.current_state = "user"
-                case "intent":
-                    content = event.get("content", "")
-                    if content:
-                        print(f"{C.gray}intent: {content}{C.R}")
-                case "think":
-                    content = event["content"]
-                    if content and content.strip():
-                        if self.current_state != "think":
-                            self._flush_accumulator()
-                            self._transition_state("think")
-                            self.first_chunk = True
-                        if self.first_chunk:
-                            content = content.lstrip()
-                            self.first_chunk = False
-                        self.accumulator += content
-                        print(content, end="", flush=True)
-                case "call":
-                    from cogency.tools.parse import parse_tool_call
 
-                    self._flush_accumulator()
-                    self._transition_state(None)
-                    self.tool_count += 1
-                    self.turn_tool_count += 1
-                    try:
-                        call = parse_tool_call(event.get("content", ""))
-                        self.pending_call = call
-                        in_progress = self._format_in_progress(call)
-                        print(f"\n{C.cyan}○{C.R} {in_progress}", end="", flush=True)
-                    except Exception:
-                        self.pending_call = None
-                case "execute":
-                    if self.pending_call:
-                        import asyncio
+            await self._render_event(event)
 
-                        self.spinner_task = asyncio.create_task(self._animate_spinner())
-                case "result":
-                    if self.spinner_task:
-                        self.spinner_task.cancel()
-                        self.spinner_task = None
+    def _render_header(self):
+        if self.summaries:
+            print(f"{C.gray}context:{C.R}")
+            for s in self.summaries:
+                print(f"{C.gray}  {s['summary']}{C.R}")
+            print()
 
-                    if self.pending_call:
-                        action = self._format_action(self.pending_call, event)
-                        print(f"\r{C.green}●{C.R} {action}\n", end="", flush=True)
-                        self.pending_call = None
-                    self._transition_state(None)
-                case "respond":
-                    content = event["content"]
-                    if content and content.strip():
-                        if self.current_state != "respond":
-                            self._flush_accumulator()
-                            self._transition_state("respond")
-                            self.first_chunk = True
-                        if self.first_chunk:
-                            content = content.lstrip()
-                            self.first_chunk = False
-                        self.accumulator += content
-                        print(content, end="", flush=True)
-                case "end":
-                    self._flush_accumulator()
-                    self._transition_state(None)
-                    print()
-                    await self._finalize_turn()
-                    return
-                case "metric":
-                    if "total" in event:
-                        self.last_metric = event["total"]
-                        if self.verbose:
-                            total = event["total"]
-                            print(f"% {total['input']}➜{total['output']}|{total['duration']:.1f}s")
-                case "error":
-                    payload = event.get("payload", {})
-                    error_msg = payload.get("error", event.get("content", "Unknown error"))
-                    print(f"{C.red}✗{C.R} {error_msg}")
-                case "interrupt":
-                    print(f"{C.yellow}⚠{C.R} Interrupted")
-                    return
+        parts = []
+        if self.messages:
+            parts.append(f"{len(self.messages)} msgs")
+            calls = sum(1 for m in self.messages if m.get("type") == "call")
+            if calls:
+                parts.append(f"{calls} calls")
 
-    async def _animate_spinner(self):
-        import asyncio
+            metrics = next(
+                (
+                    m["total"]
+                    for m in reversed(self.messages)
+                    if m.get("type") == "metric" and "total" in m
+                ),
+                None,
+            )
+            if metrics:
+                total = metrics["input"] + metrics["output"]
+                pct = int(total / 128000 * 100)
+                parts.append(f"{metrics['input']}→{metrics['output']} tok ({pct}%)")
 
-        if not self.pending_call:
-            return
+        if parts:
+            print(f"{C.gray}» {' | '.join(parts)}{C.R}")
 
-        name = self._normalize_tool_name(self.pending_call.name)
-        arg = self._extract_primary_arg(self.pending_call)
-        base = f'{name}("{arg}")' if arg else f"{name}()"
+    async def _render_event(self, e):
+        match e["type"]:
+            case "user":
+                if e["content"]:
+                    print(f"{C.gray}---{C.R}\n{C.cyan}${C.R} {e['content']}")
+                    self.state = "user"
+                    self.thinking_task = asyncio.create_task(self._think_spin())
 
+            case "intent":
+                if self.thinking_task:
+                    self.thinking_task.cancel()
+                    self.thinking_task = None
+                    print("\r\033[K", end="", flush=True)
+                if e.get("content"):
+                    print(f"{C.gray}intent: {e['content']}{C.R}")
+
+            case "think":
+                if self.thinking_task:
+                    self.thinking_task.cancel()
+                    self.thinking_task = None
+                    print("\r\033[K", end="", flush=True)
+                if e["content"] and e["content"].strip():
+                    if self.state != "think":
+                        self._newline()
+                        print(f"{C.gray}~{C.R} ", end="", flush=True)
+                        self.state = "think"
+                        self.first_chunk = True
+                    content = e["content"].lstrip() if self.first_chunk else e["content"]
+                    self.first_chunk = False
+                    print(content, end="", flush=True)
+
+            case "respond":
+                if self.thinking_task:
+                    self.thinking_task.cancel()
+                    self.thinking_task = None
+                    print("\r\033[K", end="", flush=True)
+                if e["content"] and e["content"].strip():
+                    if self.state != "respond":
+                        self._newline()
+                        print(f"{C.magenta}>{C.R} ", end="", flush=True)
+                        self.state = "respond"
+                        self.first_chunk = True
+                    content = e["content"].lstrip() if self.first_chunk else e["content"]
+                    self.first_chunk = False
+                    print(content, end="", flush=True)
+
+            case "call":
+                from cogency.tools.parse import parse_tool_call
+
+                if self.thinking_task:
+                    self.thinking_task.cancel()
+                    self.thinking_task = None
+                    print("\r\033[K", end="", flush=True)
+
+                self._newline()
+                self.state = None
+                self.turn_tools += 1
+
+                try:
+                    call = parse_tool_call(e.get("content", ""))
+                    self.pending_call = call
+                    print(f"{C.cyan}○{C.R} {self._fmt_call(call)}", end="", flush=True)
+                except Exception:
+                    self.pending_call = None
+
+            case "execute":
+                if self.pending_call:
+                    self.spinner_task = asyncio.create_task(self._spin())
+
+            case "result":
+                if self.spinner_task:
+                    self.spinner_task.cancel()
+                    self.spinner_task = None
+
+                if self.pending_call:
+                    outcome = self._fmt_result(self.pending_call, e)
+                    is_error = e.get("payload", {}).get("error", False)
+                    symbol = f"{C.red}✗{C.R}" if is_error else f"{C.green}●{C.R}"
+                    print(f"\r\033[K{symbol} {outcome}\n", end="", flush=True)
+                    self.pending_call = None
+                self.state = None
+
+            case "end":
+                self._newline()
+                print()
+                await self._finalize()
+
+            case "error":
+                msg = e.get("payload", {}).get("error") or e.get("content", "Unknown error")
+                print(f"{C.red}✗{C.R} {msg}")
+
+            case "interrupt":
+                print(f"{C.yellow}⚠{C.R} Interrupted")
+
+    async def _think_spin(self):
+        frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        i = 0
+        start = time.time()
         try:
             while True:
-                frame = self.spinner_frames[self.spinner_index]
-                print(f"\r{C.cyan}{frame}{C.R} {base}", end="", flush=True)
-                self.spinner_index = (self.spinner_index + 1) % len(self.spinner_frames)
+                elapsed = int(time.time() - start)
+                print(f"\r{C.gray}{frames[i]} thinking ({elapsed}s){C.R}", end="", flush=True)
+                i = (i + 1) % len(frames)
                 await asyncio.sleep(0.08)
         except asyncio.CancelledError:
             pass
 
-    def _flush_accumulator(self):
-        if self.accumulator:
-            # Trim trailing whitespace including newlines
-            self.accumulator = self.accumulator.rstrip()
-            if self.accumulator:
-                print(self.accumulator, end="", flush=True)
-            print()  # Add a newline after flushing
-        self.accumulator = ""
-
-    def _transition_state(self, new_state: str | None):
-        if self.current_state in ("think", "respond"):
-            print(C.R, end="", flush=True)
-
-        match new_state:
-            case "think":
-                if self.current_state is None:
-                    print(f"{C.gray}~{C.R} ", end="", flush=True)
-                else:
-                    print(f"\n{C.gray}~{C.R} ", end="", flush=True)
-            case "respond":
-                if self.current_state is None:
-                    print("> ", end="", flush=True)
-                else:
-                    print("\n> ", end="", flush=True)
-
-        self.current_state = new_state
-
-    async def _finalize_turn(self):
-        """Profile turn and generate rolling summary."""
-        if not self.turn_start:
-            return
-
-        duration = time.time() - self.turn_start
-        tokens = 0
-        if self.last_metric:
-            tokens = self.last_metric.get("input", 0) + self.last_metric.get("output", 0)
-
-        profile = {
-            "tokens": tokens,
-            "tools": self.turn_tool_count,
-            "duration": duration,
-        }
-
-        if self.conv_id and self.llm:
-            asyncio.create_task(self._summarize_turn(profile))
-
-    async def _summarize_turn(self, profile: dict):
-        """Async fire-and-forget turn summary."""
-        if not self.llm or not self.conv_id:
-            return
-
+    async def _spin(self):
+        frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        i = 0
+        start = time.time()
         try:
-            from cogency.lib.storage import SQLite
-
-            content = self._build_summary_content()
-            prompt = f"Summarize this turn in 1-2 sentences:\n\n{content}"
-
-            summary = await self.llm.generate(prompt, max_tokens=100)
-
-            storage = SQLite()
-            await storage.save_turn_summary(
-                self.conv_id, summary, profile["tokens"], profile["tools"], profile["duration"]
-            )
-        except Exception:
+            while True:
+                elapsed = int(time.time() - start)
+                name = self._tool_name(self.pending_call.name)
+                print(f"\r{C.cyan}{frames[i]} {name} ({elapsed}s){C.R}", end="", flush=True)
+                i = (i + 1) % len(frames)
+                await asyncio.sleep(0.4)
+        except asyncio.CancelledError:
             pass
 
-    def _build_summary_content(self) -> str:
-        """Build summary from turn events."""
-        parts = []
-        for event in self.turn_events:
-            ev_type = event.get("type")
-            if ev_type == "user":
-                parts.append(f"User: {event.get('content', '')}")
-            elif ev_type == "intent":
-                parts.append(f"Intent: {event.get('content', '')}")
-            elif ev_type == "respond":
-                parts.append(f"Agent: {event.get('content', '')}")
-            elif ev_type == "call":
-                parts.append(f"Tool: {event.get('content', '')}")
-        return "\n".join(parts[:20])
+    def _newline(self):
+        if self.state in ("think", "respond"):
+            print()
+        self.state = None
 
-    def _get_last_metrics(self) -> dict | None:
-        if not self.messages:
-            return None
+    def _fmt_call(self, call) -> str:
+        name = self._tool_name(call.name)
+        arg = self._tool_arg(call.args)
+        return f"{name}({arg}): ..." if arg else f"{name}(): ..."
 
-        for msg in reversed(self.messages):
-            if msg.get("type") == "metric" and "total" in msg:
-                return msg["total"]
-        return None
+    def _fmt_result(self, call, event) -> str:
+        name = self._tool_name(call.name)
+        arg = self._tool_arg(call.args)
+        outcome = self._tool_outcome(event.get("payload", {}))
+        base = f"{name}({arg})" if arg else f"{name}()"
+        return f"{base}: {outcome}"
 
-    def _format_in_progress(self, call) -> str:
-        name = self._normalize_tool_name(call.name)
-        arg = self._extract_primary_arg(call)
-        return f'{name}("{arg}")...' if arg else f"{name}()..."
-
-    def _format_action(self, call, result_event) -> str:
-        payload = result_event.get("payload", {})
-        name = self._normalize_tool_name(call.name)
-        arg = self._extract_primary_arg(call)
-        outcome = self._extract_outcome(payload)
-
-        base = f'{name}("{arg}")' if arg else f"{name}()"
-        return f"{base}: {outcome}" if outcome else base
-
-    def _normalize_tool_name(self, name: str) -> str:
+    def _tool_name(self, name: str) -> str:
         import re
 
         return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
-    def _extract_primary_arg(self, call) -> str:
-        args = call.args
+    def _tool_arg(self, args: dict) -> str:
         if not isinstance(args, dict):
             return ""
 
-        arg_keys = ["file", "path", "file_path", "pattern", "query", "command", "url", "dir"]
-        for key in arg_keys:
-            if key in args and args[key]:
-                value = str(args[key])
-                return value if len(value) < 50 else value[:47] + "..."
+        for k in ["file", "path", "file_path", "pattern", "query", "command", "url", "dir"]:
+            if v := args.get(k):
+                s = str(v)
+                return s if len(s) < 50 else s[:47] + "..."
 
         if args:
-            first_val = str(next(iter(args.values())))
-            return first_val if len(first_val) < 50 else first_val[:47] + "..."
-
+            s = str(next(iter(args.values())))
+            return s if len(s) < 50 else s[:47] + "..."
         return ""
 
-    def _extract_outcome(self, payload) -> str:
-        if "error" in payload and payload["error"]:
+    def _tool_outcome(self, payload: dict) -> str:
+        if payload.get("error"):
             return payload.get("outcome", "error")
 
         outcome = payload.get("outcome", "")
-        if outcome:
-            return outcome
 
-        return "ok"
+        if outcome.startswith("LOC "):
+            parts = outcome[4:].split()
+            if len(parts) == 2:
+                return f"+{parts[0]}/-{parts[1]}"
+
+        if outcome.startswith("Listed ") and " items" in outcome:
+            return f"{outcome.split()[1]} items"
+
+        if outcome.startswith("Found "):
+            if " matches" in outcome:
+                return f"{outcome.split()[1]} matches"
+            if " results" in outcome:
+                return f"{outcome.split()[1]} results"
+
+        return outcome or "ok"
+
+    async def _finalize(self):
+        if not (self.turn_start and self.conv_id and self.llm):
+            return
+
+        asyncio.create_task(self._summarize())
+
+    async def _summarize(self):
+        try:
+            from cogency.lib.storage import SQLite
+
+            parts = []
+            for e in self.turn_events:
+                t = e.get("type")
+                if t == "user":
+                    parts.append(f"User: {e.get('content', '')}")
+                elif t == "respond":
+                    parts.append(f"Agent: {e.get('content', '')}")
+                elif t == "call":
+                    parts.append(f"Tool: {e.get('content', '')}")
+
+            content = "\n".join(parts[:20])
+            summary = await self.llm.generate(
+                [{"role": "user", "content": f"Summarize in 1-2 sentences:\n\n{content}"}]
+            )
+
+            duration = time.time() - self.turn_start
+            storage = SQLite()
+            await storage.save_turn_summary(self.conv_id, summary, 0, self.turn_tools, duration)
+        except Exception:
+            pass

@@ -1,5 +1,5 @@
-default:
-    @just --list
+default *ARGS:
+    @poetry run python -m src.cc {{ARGS}}
 
 install:
     @poetry install

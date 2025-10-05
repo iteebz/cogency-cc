@@ -31,7 +31,7 @@ class GLM(LLM):
     async def generate(self, messages: list[dict]) -> str:
         async def _generate_with_key(api_key: str) -> str:
             try:
-                if self._session is None:
+                if self._session is None or self._session.closed:
                     self._session = self._create_session()
 
                 headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -44,10 +44,10 @@ class GLM(LLM):
                 }
 
                 url = "https://api.z.ai/api/coding/paas/v4/chat/completions"
-
-                # Add timeout to prevent hanging
-                timeout = aiohttp.ClientTimeout(total=60)  # 60 seconds timeout
-                async with self._session.post(url, headers=headers, json=data, timeout=timeout) as response:
+                timeout = aiohttp.ClientTimeout(total=60)
+                async with self._session.post(
+                    url, headers=headers, json=data, timeout=timeout
+                ) as response:
                     if response.status != 200:
                         error_text = await response.text()
                         logger.error(f"GLM API error {response.status}: {error_text}")
@@ -59,6 +59,9 @@ class GLM(LLM):
             except asyncio.TimeoutError:
                 logger.error("GLM API request timed out")
                 raise RuntimeError("GLM API request timed out") from None
+            except aiohttp.ServerDisconnectedError:
+                await self.close()
+                raise RuntimeError("Server disconnected, session reset") from None
             except Exception as e:
                 logger.error(f"GLM generate failed: {str(e)}")
                 raise RuntimeError(f"GLM generate error: {str(e)}") from e
@@ -71,7 +74,7 @@ class GLM(LLM):
             try:
                 import json
 
-                if self._session is None:
+                if self._session is None or self._session.closed:
                     self._session = self._create_session()
 
                 headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -82,58 +85,74 @@ class GLM(LLM):
                     "temperature": self.temperature,
                     "max_tokens": self.max_tokens,
                     "stream": True,
+                    "stop": ["§end", "\n\n\n"],
                 }
 
-                logger.debug(
-                    f"GLM request: {len(messages)} messages, first role: {messages[0].get('role') if messages else None}"
-                )
+                logger.debug(f"GLM sending {len(messages)} messages")
+                for i, m in enumerate(messages[-5:]):
+                    logger.debug(f"  msg[{i}] {m.get('role')}: {m.get('content', '')[:80]}")
 
                 url = "https://api.z.ai/api/coding/paas/v4/chat/completions"
-
-                # Add timeout to prevent hanging
-                timeout = aiohttp.ClientTimeout(total=120)  # 120 seconds timeout for streaming
-                async with self._session.post(url, headers=headers, json=data, timeout=timeout) as response:
+                timeout = aiohttp.ClientTimeout(total=120, sock_read=30)
+                async with self._session.post(
+                    url, headers=headers, json=data, timeout=timeout
+                ) as response:
                     if response.status != 200:
                         error_text = await response.text()
                         logger.error(f"GLM API error {response.status}: {error_text}")
                         raise ConnectionError(f"GLM API {response.status}: {error_text}")
 
-                    # Add a counter to prevent infinite loops
-                    chunk_count = 0
-                    max_chunks = 1000  # Maximum number of chunks to process
+                    buffer = ""
+                    try:
+                        async for chunk in response.content.iter_any():
+                            decoded = chunk.decode("utf-8")
+                            buffer += decoded
+                            logger.debug(f"GLM buffer len={len(buffer)}")
 
-                    async for line in response.content:
-                        chunk_count += 1
-                        if chunk_count > max_chunks:
-                            logger.warning(f"GLM stream exceeded maximum chunks ({max_chunks}), terminating")
-                            break
+                            while "\n" in buffer:
+                                line, buffer = buffer.split("\n", 1)
+                                line = line.rstrip()
+                                logger.debug(f"GLM line: {line[:80]}")
 
-                        line = line.decode("utf-8").strip()
-                        if not line.startswith("data: "):
-                            continue
+                                if not line.startswith("data: "):
+                                    continue
 
-                        data_str = line[6:]
-                        if data_str == "[DONE]":
-                            logger.debug("GLM stream: [DONE] received")
-                            break
+                                data_str = line[6:]
+                                if data_str == "[DONE]":
+                                    logger.debug("GLM stream: [DONE] received")
+                                    return
 
-                        try:
-                            chunk_data = json.loads(data_str)
-                            delta = chunk_data.get("choices", [{}])[0].get("delta", {})
+                                try:
+                                    chunk_data = json.loads(data_str)
+                                    choices = chunk_data.get("choices", [{}])
+                                    if not choices:
+                                        continue
 
-                            if delta.get("content"):
-                                yield delta["content"]
+                                    choice = choices[0]
+                                    delta = choice.get("delta", {})
 
-                            finish_reason = chunk_data.get("choices", [{}])[0].get("finish_reason")
-                            if finish_reason:
-                                logger.debug(f"GLM stream: finish_reason={finish_reason}")
-                                break
-                        except json.JSONDecodeError:
-                            continue
+                                    content = delta.get("content", "")
+                                    if content:
+                                        logger.debug(f"GLM chunk: {repr(content[:50])}")
+                                        yield content
+
+                                    finish_reason = choice.get("finish_reason")
+                                    if finish_reason:
+                                        logger.debug(f"GLM stream: finish_reason={finish_reason}")
+                                        return
+                                except json.JSONDecodeError as e:
+                                    logger.debug(f"GLM JSON decode error: {e}")
+                                    continue
+                    except asyncio.CancelledError:
+                        logger.debug("GLM stream cancelled")
+                        raise
 
             except asyncio.TimeoutError:
                 logger.error("GLM API stream timed out")
                 raise RuntimeError("GLM API stream timed out") from None
+            except aiohttp.ServerDisconnectedError:
+                await self.close()
+                raise RuntimeError("Server disconnected, session reset") from None
             except Exception as e:
                 logger.error(f"GLM streaming failed: {str(e)}")
                 raise RuntimeError(f"GLM streaming error: {str(e)}") from e

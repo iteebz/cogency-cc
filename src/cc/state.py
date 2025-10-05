@@ -32,7 +32,7 @@ class Config:
     conversation_id: str = "dev_work"
     tools: list[str] = field(default_factory=lambda: ["file", "web", "memory"])
     api_keys: dict[str, str] = field(default_factory=dict)
-    identity: str = field(default_factory=lambda: "coding")  # NEW: identity configuration
+    identity: str = field(default_factory=lambda: "code")  # NEW: identity configuration
     token_limit: int = 100000  # Token limit for percentage calculation
 
     config_dir: Path = field(default_factory=lambda: _default_config_dir())

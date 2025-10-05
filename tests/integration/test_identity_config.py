@@ -10,11 +10,11 @@ class TestIdentityConfiguration:
 
     @patch("cc.agent.GLM")
     @patch("cc.agent.Config")
-    def test_agent_with_coding_identity(self, mock_config_class, mock_glm):
+    def test_with_coding_identity(self, mock_config_class, mock_glm):
         """Test agent creation with coding identity."""
         mock_config = MagicMock()
         mock_config.provider = "glm"
-        mock_config.identity = "coding"
+        mock_config.identity = "code"
         mock_config.get_api_key.return_value = "test-key"
         mock_config_class.return_value = mock_config
 
@@ -32,7 +32,7 @@ class TestIdentityConfiguration:
 
     @patch("cc.agent.GLM")
     @patch("cc.agent.Config")
-    def test_agent_with_cothinker_identity(self, mock_config_class, mock_glm):
+    def test_with_cothinker_identity(self, mock_config_class, mock_glm):
         """Test agent creation with cothinker identity."""
         mock_config = MagicMock()
         mock_config.provider = "glm"
@@ -54,7 +54,7 @@ class TestIdentityConfiguration:
 
     @patch("cc.agent.GLM")
     @patch("cc.agent.Config")
-    def test_agent_with_assistant_identity(self, mock_config_class, mock_glm):
+    def test_with_assistant_identity(self, mock_config_class, mock_glm):
         """Test agent creation with assistant identity."""
         mock_config = MagicMock()
         mock_config.provider = "glm"

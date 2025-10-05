@@ -2,48 +2,52 @@
 
 import pytest
 
-from cc.identity import CODING_IDENTITY, get_identity, list_identity
+from cc.identity import CODE, get_identity, list_identity
 
 
-def test_list_identity():
+def test_list():
     """Test listing available identities."""
     identity = list_identity()
-    expected = ["coding", "cothinker", "assistant"]
+    expected = ["code", "cothinker", "assistant"]
     assert identity == expected
 
-def test_get_identity_coding():
+
+def test_get_coding():
     """Test getting coding identity."""
-    identity = get_identity("coding")
+    identity = get_identity("code")
     assert "Cogency Code" in identity
     assert "coding agent" in identity
     assert "read, write, and reason about code" in identity
 
-def test_get_identity_cothinker():
+
+def test_get_cothinker():
     """Test getting cothinker identity."""
     identity = get_identity("cothinker")
     assert "Cothinker" in identity
     assert "critical thinking partner" in identity
     assert "prevent bad implementations" in identity
 
-def test_get_identity_assistant():
+
+def test_get_assistant():
     """Test getting assistant identity."""
     identity = get_identity("assistant")
     assert "helpful assistant" in identity
     assert "accommodating and supportive" in identity
 
-def test_get_identity_unknown():
+
+def test_get_unknown():
     """Test error for unknown identity."""
     with pytest.raises(ValueError, match="Unknown identity 'unknown'"):
         get_identity("unknown")
 
-def test_coding_identity_structure():
-    """Test that CODING_IDENTITY contains required elements."""
-    assert "Cogency Code" in CODING_IDENTITY
-    assert "OPERATIONAL PRINCIPLES" in CODING_IDENTITY
-    assert "WORKFLOW" in CODING_IDENTITY
-    assert "ERROR HANDLING" in CODING_IDENTITY
+
+def test_coding_structure():
+    """Test that CODE contains required elements."""
+    assert "Cogency Code" in CODE
+    assert "PRINCIPLES" in CODE
+    assert "WORKFLOW" in CODE
+    assert "ERROR HANDLING" in CODE
 
     # Verify key principles are present
-    assert "Read files before making claims" in CODING_IDENTITY
-    assert "Accuracy > speed" in CODING_IDENTITY
-    assert "NEVER fabricate tool output" in CODING_IDENTITY
+    assert "read` files before making claims" in CODE
+    assert "NEVER fabricate tool output" in CODE

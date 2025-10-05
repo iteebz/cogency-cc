@@ -9,7 +9,7 @@ from unittest.mock import patch
 from cc.state import Config
 
 
-def test_config_defaults():
+def test_defaults():
     """Test default configuration values."""
     config = Config()
 
@@ -20,7 +20,7 @@ def test_config_defaults():
     assert config.api_keys == {}
 
 
-def test_get_api_key_env_priority():
+def test_api_key_env_priority():
     """Test that environment variables take precedence over stored keys."""
     with tempfile.TemporaryDirectory() as temp_dir:
         config_path = Path(temp_dir) / "config.json"
@@ -43,7 +43,7 @@ def test_get_api_key_env_priority():
             assert config.get_api_key("openai") == "env_key"
 
 
-def test_config_persistence():
+def test_persistence():
     """Test configuration persistence to file."""
     with tempfile.TemporaryDirectory() as temp_dir:
         config_path = Path(temp_dir) / "config.json"
@@ -63,7 +63,7 @@ def test_config_persistence():
         assert data["user_id"] == "test_user"
 
 
-def test_load_existing_config():
+def test_load_existing():
     """Test loading existing configuration."""
     with tempfile.TemporaryDirectory() as temp_dir:
         config_path = Path(temp_dir) / "config.json"
@@ -93,7 +93,7 @@ def test_load_existing_config():
         assert config.api_keys == {"glm": "test_key"}
 
 
-def test_get_api_key_status():
+def test_api_key_status():
     """Test API key status display."""
     config = Config()
     config.api_keys = {"glm": "stored_key"}
@@ -106,7 +106,7 @@ def test_get_api_key_status():
             assert config.get_api_key_status("anthropic") == "✗ Anthropic"
 
 
-def test_config_update():
+def test_update():
     """Test the update method."""
     config = Config()
 
@@ -120,7 +120,7 @@ def test_config_update():
     assert config.api_keys == {"openai": "new_key"}
 
 
-def test_broken_config_handling():
+def test_broken_config():
     """Test handling of broken config files."""
     with tempfile.TemporaryDirectory() as temp_dir:
         config_path = Path(temp_dir) / "config.json"
@@ -146,12 +146,14 @@ def test_broken_config_handling():
         assert config.provider == "glm"
         assert config.mode == "auto"
 
-def test_config_default_identity():
+
+def test_default_identity():
     """Test config has default identity."""
     config = Config()
-    assert config.identity == "coding"
+    assert config.identity == "code"
 
-def test_config_identity_persistence(tmp_path):
+
+def test_identity_persistence(tmp_path):
     """Test identity persists to config file."""
     import json
     import tempfile
@@ -171,7 +173,8 @@ def test_config_identity_persistence(tmp_path):
 
         assert data["identity"] == "cothinker"
 
-def test_config_api_key_priority():
+
+def test_api_key_priority():
     """Test API key resolution priority: env > stored."""
     with tempfile.TemporaryDirectory() as temp_dir:
         config_path = Path(temp_dir) / "config.json"
@@ -192,7 +195,8 @@ def test_config_api_key_priority():
 
             assert config.get_api_key("glm") == "env_key"
 
-def test_default_configuration_values():
+
+def test_default_values():
     """Test that defaults are sensible and minimal."""
     # Create fresh config without loading from disk
     config = object.__new__(Config)  # Skip __post_init__ to avoid loading

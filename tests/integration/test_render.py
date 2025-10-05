@@ -14,7 +14,7 @@ class TestEventFlow:
     @pytest.mark.asyncio
     @patch("cc.agent.GLM")
     @patch("cc.agent.Config")
-    async def test_complete_event_flow(self, mock_config_class, mock_glm):
+    async def test_event_flow(self, mock_config_class, mock_glm):
         """Test complete flow from agent creation to renderer output."""
         from cc.renderer import Renderer
 
@@ -45,7 +45,7 @@ class TestEventFlow:
                 config = MagicMock()
                 config.provider = "glm"
                 config.get_api_key.return_value = "test-key"
-                config.identity = "coding"
+                config.identity = "code"
 
                 create_agent(config)
 
@@ -56,4 +56,4 @@ class TestEventFlow:
 
                 output_text = output.getvalue()
                 assert "debug this code" in output_text
-                assert "> I found the bug on line 42" in output_text
+                assert "I found the bug on line 42" in output_text

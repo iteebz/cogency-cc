@@ -14,12 +14,12 @@ class TestAgentCreation:
 
     @patch("cc.agent.GLM")
     @patch("cc.agent.Config")
-    def test_create_agent_with_instructions(self, mock_config_class, mock_glm):
+    def test_with_instructions(self, mock_config_class, mock_glm):
         """Test agent creation with loaded instructions."""
         # Setup mocks
         mock_config = MagicMock()
         mock_config.provider = "glm"
-        mock_config.identity = "coding"  # NEW: mock identity
+        mock_config.identity = "code"  # NEW: mock identity
         mock_config.get_api_key.return_value = "test-key"
         mock_config_class.return_value = mock_config
 
@@ -39,11 +39,11 @@ class TestAgentCreation:
 
     @patch("cc.agent.GLM")
     @patch("cc.agent.Config")
-    def test_create_agent_without_instructions(self, mock_config_class, mock_glm):
+    def test_without_instructions(self, mock_config_class, mock_glm):
         """Test agent creation without instructions."""
         mock_config = MagicMock()
         mock_config.provider = "glm"
-        mock_config.identity = "coding"  # NEW: mock identity
+        mock_config.identity = "code"  # NEW: mock identity
         mock_config.get_api_key.return_value = "test-key"
         mock_config_class.return_value = mock_config
 
@@ -63,13 +63,13 @@ class TestAgentIdentity:
 
     @patch("cc.agent.GLM")
     @patch("cc.agent.Config")
-    def test_agent_security_configuration(self, mock_config_class, mock_glm):
+    def test_security_configuration(self, mock_config_class, mock_glm):
         """Test that agent is created with project-scoped security."""
         from cogency.core.config import Security
 
         mock_config = MagicMock()
         mock_config.provider = "glm"
-        mock_config.identity = "coding"
+        mock_config.identity = "code"
         mock_config.get_api_key.return_value = "test-key"
         mock_config_class.return_value = mock_config
         mock_glm.return_value = MagicMock()

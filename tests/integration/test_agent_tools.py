@@ -10,10 +10,10 @@ from cc.state import Config
 from tests.conftest import MockLLM
 
 
-def test_agent_with_mock_llm():
+def test_with_mock_llm():
     """Test that agent can use tools when provided with mock LLM."""
     config = Config(provider="mock", user_id="test")
-    config.identity = "coding"
+    config.identity = "code"
 
     # Replace the GLM provider with our mock
     with patch("cc.agent._create_llm") as mock_create:
@@ -26,10 +26,10 @@ def test_agent_with_mock_llm():
 
 
 @pytest.mark.asyncio
-async def test_agent_tool_execution():
+async def test_tool_execution():
     """Test that agent properly executes tools when given a query."""
     config = Config(provider="mock", user_id="test")
-    config.identity = "coding"
+    config.identity = "code"
 
     with patch("cc.agent._create_llm") as mock_create:
         mock_llm = MockLLM()
@@ -68,4 +68,4 @@ async def test_agent_tool_execution():
 
 if __name__ == "__main__":
     # Run a quick test
-    asyncio.run(test_agent_tool_execution())
+    asyncio.run(test_tool_execution())

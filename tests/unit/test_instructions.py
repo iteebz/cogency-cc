@@ -7,7 +7,7 @@ from unittest.mock import patch
 from cc.instructions import find_project_root, load_instructions
 
 
-def test_load_cogency_md_priority():
+def test_load_cogency_priority():
     """Test that COGENCY.md takes priority over CRUSH.md."""
     with tempfile.TemporaryDirectory() as temp_dir:
         project_root = Path(temp_dir)
@@ -24,7 +24,8 @@ def test_load_cogency_md_priority():
 
         assert instructions == "cogency instructions"
 
-def test_load_crush_md_fallback():
+
+def test_load_crush_fallback():
     """Test fallback to CRUSH.md when COGENCY.md doesn't exist."""
     with tempfile.TemporaryDirectory() as temp_dir:
         project_root = Path(temp_dir)
@@ -38,7 +39,8 @@ def test_load_crush_md_fallback():
 
         assert instructions == "crush fallback instructions"
 
-def test_load_no_instructions():
+
+def test_load_no_files():
     """Test graceful handling when no instruction files exist."""
     with tempfile.TemporaryDirectory() as temp_dir:
         project_root = Path(temp_dir)
@@ -49,7 +51,8 @@ def test_load_no_instructions():
 
         assert instructions is None
 
-def test_find_project_root_with_cogency_dir():
+
+def test_find_root_with_cogency_dir():
     """Test finding project root by .cogency directory."""
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
@@ -63,7 +66,8 @@ def test_find_project_root_with_cogency_dir():
         found = find_project_root(start_path=subdir)
         assert found == root
 
-def test_find_project_root_not_found():
+
+def test_find_root_not_found():
     """Test graceful handling when no project root found."""
     with tempfile.TemporaryDirectory() as temp_dir:
         project_root = Path(temp_dir)

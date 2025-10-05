@@ -17,18 +17,23 @@ def main() -> None:
     force_new = False
     interactive = False
 
-    if "--openai" in sys.argv:
-        sys.argv.remove("--openai")
-        provider = "openai"
-    elif "--gemini" in sys.argv:
-        sys.argv.remove("--gemini")
-        provider = "gemini"
-    elif "--claude" in sys.argv:
-        sys.argv.remove("--claude")
-        provider = "anthropic"
-    elif "--glm" in sys.argv:
-        sys.argv.remove("--glm")
-        provider = "glm"
+    if "--debug" in sys.argv:
+        sys.argv.remove("--debug")
+        from cogency.lib.logger import set_debug
+
+        set_debug(True)
+
+    provider_flags = {
+        "--openai": "openai",
+        "--gemini": "gemini",
+        "--claude": "anthropic",
+        "--glm": "glm",
+    }
+    for flag, p_name in provider_flags.items():
+        if flag in sys.argv:
+            sys.argv.remove(flag)
+            provider = p_name
+            break
 
     if "--new" in sys.argv:
         sys.argv.remove("--new")

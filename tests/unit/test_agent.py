@@ -8,7 +8,7 @@ from cc.agent import _create_llm
 
 
 @patch("cc.agent.Config")
-def test_create_llm_providers(mock_config_class):
+def test_llm_providers(mock_config_class):
     """Test LLM provider creation for different providers."""
     from cogency.lib.llms.anthropic import Anthropic
     from cogency.lib.llms.gemini import Gemini
@@ -33,7 +33,7 @@ def test_create_llm_providers(mock_config_class):
             mock_provider.assert_called_once_with(api_key=f"{provider_name}-key")
 
 
-def test_create_llm_unknown_provider():
+def test_llm_unknown_provider():
     """Test error handling for unknown LLM providers."""
     mock_config = MagicMock()
 
