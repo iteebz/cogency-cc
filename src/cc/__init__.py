@@ -1,4 +1,4 @@
-"""cogency-code - Reference grade CLI agent."""
+"""cc - Reference grade CLI agent."""
 
 __version__ = "0.1.0"
 

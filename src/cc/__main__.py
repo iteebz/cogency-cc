@@ -16,7 +16,6 @@ def main() -> None:
     provider = None
     conv_id = None
     force_new = False
-    chunks = False
     interactive = False
 
     if "--openai" in sys.argv:
@@ -35,10 +34,6 @@ def main() -> None:
     if "--new" in sys.argv:
         sys.argv.remove("--new")
         force_new = True
-
-    if "--chunks" in sys.argv:
-        sys.argv.remove("--chunks")
-        chunks = True
 
     if "--interactive" in sys.argv or "-i" in sys.argv:
         if "--interactive" in sys.argv:
@@ -84,10 +79,10 @@ def main() -> None:
         conv_id = str(uuid.uuid4())
 
     if interactive:
-        asyncio.run(run_interactive(config, conv_id, chunks))
+        asyncio.run(run_interactive(config, conv_id))
     else:
         if len(sys.argv) <= 1:
-            print("Usage: cc <query> [--glm|--claude|--gemini|--openai] [--chunks] [--new] [-i|--interactive]")
+            print("Usage: cc <query> [--glm|--claude|--gemini|--openai] [--new] [-i|--interactive]")
             sys.exit(1)
 
         query = " ".join(sys.argv[1:])
@@ -105,12 +100,12 @@ def main() -> None:
         )
 
         agent = create_agent(config, cli_instruction)
-        asyncio.run(run_one_shot(agent, query, conv_id, chunks))
+        asyncio.run(run_one_shot(agent, query, conv_id))
 
 
-async def run_one_shot(agent, query: str, conv_id: str, chunks: bool):
+async def run_one_shot(agent, query: str, conv_id: str):
     renderer = Renderer()
-    stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=chunks)
+    stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=True)
     try:
         await renderer.render_stream(stream)
     finally:
@@ -120,7 +115,7 @@ async def run_one_shot(agent, query: str, conv_id: str, chunks: bool):
                 await llm.close()
 
 
-async def run_interactive(config: Config, conv_id: str, chunks: bool):
+async def run_interactive(config: Config, conv_id: str):
     agent = create_agent(config)
     renderer = Renderer()
 
@@ -136,7 +131,7 @@ async def run_interactive(config: Config, conv_id: str, chunks: bool):
                 if query.lower() in ("exit", "quit"):
                     break
 
-                stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=chunks)
+                stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=True)
                 await renderer.render_stream(stream)
                 print()
 
