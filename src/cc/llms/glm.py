@@ -1,4 +1,5 @@
 import asyncio
+import os
 from collections.abc import AsyncGenerator
 
 import aiohttp
@@ -16,6 +17,9 @@ class GLM(LLM):
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ):
+        if api_key is None:
+            api_key = os.environ.get("GLM_API_KEY")
+
         if not api_key:
             raise RuntimeError("No GLM API key found")
         self.api_key = api_key

@@ -34,7 +34,13 @@ class SummaryStorage:
             """)
 
     async def save_summary(
-        self, conversation_id: str, user_id: str, summary: str, message_count: int, start_ts: float, end_ts: float
+        self,
+        conversation_id: str,
+        user_id: str,
+        summary: str,
+        message_count: int,
+        start_ts: float,
+        end_ts: float,
     ) -> str:
         summary_id = uuid7()
 
@@ -42,7 +48,16 @@ class SummaryStorage:
             with DB.connect(self.db_path) as db:
                 db.execute(
                     "INSERT INTO summaries (summary_id, conversation_id, user_id, summary, message_count, start_timestamp, end_timestamp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    (summary_id, conversation_id, user_id, summary, message_count, start_ts, end_ts, time.time()),
+                    (
+                        summary_id,
+                        conversation_id,
+                        user_id,
+                        summary,
+                        message_count,
+                        start_ts,
+                        end_ts,
+                        time.time(),
+                    ),
                 )
 
         await asyncio.get_event_loop().run_in_executor(None, _sync_save)
@@ -68,7 +83,9 @@ class SummaryStorage:
 
         return await asyncio.get_event_loop().run_in_executor(None, _sync_load)
 
-    async def cull_messages(self, conversation_id: str, before_timestamp: float, keep_system: bool = True) -> int:
+    async def cull_messages(
+        self, conversation_id: str, before_timestamp: float, keep_system: bool = True
+    ) -> int:
         def _sync_cull():
             with DB.connect(self.db_path) as db:
                 if keep_system:

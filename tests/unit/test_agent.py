@@ -30,7 +30,12 @@ def test_llm_providers(mock_config_class):
             _create_llm(provider_name, mock_config)
 
             mock_config.get_api_key.assert_called_with(provider_name)
-            mock_provider.assert_called_once_with(api_key=f"{provider_name}-key")
+            if provider_name in ["openai", "gemini"]:
+                mock_provider.assert_called_once_with(
+                    api_key=f"{provider_name}-key", http_model=mock_config.model
+                )
+            else:
+                mock_provider.assert_called_once_with(api_key=f"{provider_name}-key")
 
 
 def test_llm_unknown_provider():

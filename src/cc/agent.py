@@ -49,6 +49,11 @@ def _create_llm(provider_name: str, app_config: Config):
         raise ValueError(f"Unknown provider: {provider_name}")
 
     api_key = app_config.get_api_key(provider_name)
+
+    if provider_name == "openai" and app_config.model:
+        return OpenAI(api_key=api_key, http_model=app_config.model)
+    if provider_name == "gemini" and app_config.model:
+        return Gemini(api_key=api_key, http_model=app_config.model)
     return providers[provider_name](api_key=api_key)
 
 

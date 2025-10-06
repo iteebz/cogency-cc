@@ -1,22 +1,36 @@
 """Entry point for cogency-cc CLI application."""
 
 import asyncio
+import shutil
 import sys
 import uuid
 
 from .agent import create_agent
-from .conversations import get_last_conversation
 from .context import show_context
+from .conversations import get_last_conversation
 from .instructions import find_project_root
 from .renderer import Renderer
 from .state import Config
 
 
+def nuke_cogency_dir() -> None:
+    root = find_project_root()
+    if root:
+        cogency_path = root / ".cogency"
+        if cogency_path.exists() and cogency_path.is_dir():
+            print(f"Nuking {cogency_path}...")
+            shutil.rmtree(cogency_path)
+            print("Done.")
+        else:
+            print(f"No .cogency directory found at {cogency_path}.")
+    else:
+        print("No project root found.")
+    sys.exit(0)
+
+
 def main() -> None:
-    provider = None
     conv_id = None
     force_new = False
-    interactive = False
     evo_mode = False
 
     if "--debug" in sys.argv:
@@ -25,16 +39,21 @@ def main() -> None:
 
         set_debug(True)
 
-    provider_flags = {
-        "--openai": "openai",
-        "--gemini": "gemini",
-        "--claude": "anthropic",
-        "--glm": "glm",
+    model_alias_flags = {
+        "--codex": {"provider": "openai", "model": "gpt-5-codex-low"},
+        "--gemini": {"provider": "gemini", "model": "gemini-2.5-flash"},
+        "--claude": {"provider": "anthropic"},
+        "--glm": {"provider": "glm"},
+        "--gpt41": {"provider": "openai", "model": "gpt-4.1"},
     }
-    for flag, p_name in provider_flags.items():
+
+    config = Config(user_id="cogency")
+
+    for flag, values in model_alias_flags.items():
         if flag in sys.argv:
             sys.argv.remove(flag)
-            provider = p_name
+            config.provider = values.get("provider")
+            config.model = values.get("model")
             break
 
     if "--new" in sys.argv:
@@ -44,13 +63,6 @@ def main() -> None:
     if "--evo" in sys.argv:
         sys.argv.remove("--evo")
         evo_mode = True
-
-    if "--interactive" in sys.argv or "-i" in sys.argv:
-        if "--interactive" in sys.argv:
-            sys.argv.remove("--interactive")
-        if "-i" in sys.argv:
-            sys.argv.remove("-i")
-        interactive = True
 
     if "--conv" in sys.argv:
         idx = sys.argv.index("--conv")
@@ -79,29 +91,25 @@ def main() -> None:
 
     if "--summary" in sys.argv:
         from .summary import show_summary
+
         asyncio.run(show_summary())
         sys.exit(0)
 
     if "--profile" in sys.argv:
         from .profile import show_profile
+
         asyncio.run(show_profile())
         sys.exit(0)
 
     if "--nuke" in sys.argv:
-        idx = sys.argv.index("--nuke")
-        if idx + 1 < len(sys.argv) and sys.argv[idx + 1] == "profile":
-            from .profile import nuke_profile
-            asyncio.run(nuke_profile())
+        nuke_cogency_dir()
         sys.exit(0)
 
     if "--compact" in sys.argv:
         from .compact import compact_context
+
         asyncio.run(compact_context())
         sys.exit(0)
-
-    config = Config(user_id="cogency")
-    if provider:
-        config.provider = provider
 
     resuming = False
     if not conv_id and not force_new:
@@ -114,21 +122,23 @@ def main() -> None:
     if not conv_id:
         conv_id = str(uuid.uuid4())
 
-    if interactive:
-        asyncio.run(run_interactive(config, conv_id))
-    else:
-        if len(sys.argv) <= 1:
-            print("Usage: cc <query> [--glm|--claude|--gemini|--openai] [--new] [-i|--interactive]")
-            sys.exit(1)
+    if len(sys.argv) <= 1:
+        print("Usage: cc <query> [--glm|--claude|--gemini|--codex] [--new]")
+        sys.exit(1)
 
-        query = " ".join(sys.argv[1:])
-        cli_instruction = ""
+    query = " ".join(sys.argv[1:])
+    cli_instruction = ""
 
-        agent = create_agent(config, cli_instruction)
-        asyncio.run(run_one_shot(agent, query, conv_id, resuming, evo_mode, config))
+    agent = create_agent(config, cli_instruction)
+
+    print(f"Using model: {config.model or config.provider}")
+
+    asyncio.run(run(agent, query, conv_id, resuming, evo_mode, config))
 
 
-async def run_one_shot(agent, query: str, conv_id: str, resuming: bool = False, evo_mode: bool = False, config=None):
+async def run(
+    agent, query: str, conv_id: str, resuming: bool = False, evo_mode: bool = False, config=None
+):
     from cogency.lib.storage import SQLite
 
     storage = SQLite()
@@ -139,46 +149,20 @@ async def run_one_shot(agent, query: str, conv_id: str, resuming: bool = False, 
         pass
 
     llm = agent.config.llm if hasattr(agent, "config") else None
-    renderer = Renderer(messages=msgs, llm=llm, conv_id=conv_id, summaries=summaries, config=config, evo_mode=evo_mode)
+    renderer = Renderer(
+        messages=msgs,
+        llm=llm,
+        conv_id=conv_id,
+        summaries=summaries,
+        config=config,
+        evo_mode=evo_mode,
+    )
     stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=True)
     try:
         await renderer.render_stream(stream)
     finally:
         if stream and hasattr(stream, "aclose"):
             await stream.aclose()
-        if hasattr(agent, "config") and hasattr(agent.config, "llm"):
-            llm = agent.config.llm
-            if llm and hasattr(llm, "close"):
-                await llm.close()
-
-
-async def run_interactive(config: Config, conv_id: str):
-    agent = create_agent(config)
-    renderer = Renderer()
-
-    print(f"cc interactive mode | {config.provider} | {conv_id[:8]}")
-    print("Type 'exit' or Ctrl+D to quit\n")
-
-    try:
-        while True:
-            try:
-                query = input("$ ")
-                if not query.strip():
-                    continue
-                if query.lower() in ("exit", "quit"):
-                    break
-
-                stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=True)
-                await renderer.render_stream(stream)
-                print()
-
-            except EOFError:
-                break
-            except KeyboardInterrupt:
-                print("\n^C")
-                continue
-
-    finally:
         if hasattr(agent, "config") and hasattr(agent.config, "llm"):
             llm = agent.config.llm
             if llm and hasattr(llm, "close"):

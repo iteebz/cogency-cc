@@ -2,7 +2,6 @@
 
 import json
 import sys
-from pathlib import Path
 
 from cogency.lib.storage import SQLite
 
@@ -31,7 +30,7 @@ async def show_context():
 
     dist = {}
     latest_metric = None
-    
+
     for m in msgs:
         t = m.get("type", "unknown")
         dist[t] = dist.get(t, 0) + 1
@@ -46,10 +45,12 @@ async def show_context():
     for t, count in sorted(dist.items(), key=lambda x: -x[1]):
         pct = int(count / len(msgs) * 100)
         print(f"  {t}: {count} ({pct}%)")
-    
+
     if latest_metric:
         total = latest_metric.get("input", 0) + latest_metric.get("output", 0)
-        print(f"{C.gray}tokens: {latest_metric.get('input', 0)}→{latest_metric.get('output', 0)} ({total:,} total){C.R}")
+        print(
+            f"{C.gray}tokens: {latest_metric.get('input', 0)}→{latest_metric.get('output', 0)} ({total:,} total){C.R}"
+        )
     else:
         est_tokens = sum(len(m.get("content", "")) // 4 for m in msgs)
         print(f"{C.gray}estimated tokens: ~{est_tokens:,}{C.R}")
@@ -61,7 +62,7 @@ async def show_context():
 
     for i, msg in enumerate(msgs):
         msg_type = msg.get("type", "unknown")
-        role = msg.get("role", "")
+        msg.get("role", "")
         content = msg.get("content", "")
 
         if msg_type == "user":

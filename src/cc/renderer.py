@@ -37,8 +37,9 @@ class Renderer:
         self.state = None
         self.header_shown = False
         self.first_chunk = True
-        self.pending_call = None
-        self.spinner_task = None
+        self.pending_calls = {}
+        self.result_buffers = {}
+        self.spinner_tasks = {}
         self.thinking_task = None
         self.turn_start = None
         self.turn_events = []
@@ -153,14 +154,21 @@ class Renderer:
 
                 try:
                     call = parse_tool_call(e.get("content", ""))
-                    self.pending_call = call
+                    key = self._call_key(call)
+                    self.pending_calls[key] = call
+                    self.result_buffers[key] = []
                     print(f"{C.cyan}○{C.R} {self._fmt_call(call)}", end="", flush=True)
                 except Exception:
-                    self.pending_call = None
+                    # Remove last call on exception
+                    if self.pending_calls:
+                        last_key = list(self.pending_calls.keys())[-1]
+                        del self.pending_calls[last_key]
 
             case "execute":
-                if self.pending_call:
-                    self.spinner_task = asyncio.create_task(self._spin(self.pending_call))
+                if self.pending_calls:
+                    # Spin for the last call added
+                    last_key = list(self.pending_calls.keys())[-1]
+                    self.spinner_task = asyncio.create_task(self._spin(self.pending_calls[last_key]))
 
             case "result":
                 if self.spinner_task:
@@ -168,12 +176,30 @@ class Renderer:
                     self.spinner_task = None
 
                 if self.pending_call:
-                    outcome = self._fmt_result(self.pending_call, e)
+                    if not hasattr(self, "result_buffer"):
+                        self.result_buffer = []
+                    self.result_buffer.append(e)
+                else:
+                    outcome = self._fmt_result(None, e)
                     is_error = e.get("payload", {}).get("error", False)
                     symbol = f"{C.red}✗{C.R}" if is_error else f"{C.green}●{C.R}"
                     print(f"\r\033[K{symbol} {outcome}\n", end="", flush=True)
-                    self.pending_call = None
-                self.state = None
+                    self.state = None
+
+            case "end":
+                # Flush buffered results before ending
+                if self.pending_calls:
+                    for key in list(self.pending_calls.keys()):
+                        for buffered_event in self.result_buffers.get(key, []):
+                            call = self.pending_calls.get(key)
+                            outcome = self._fmt_result(call, buffered_event)
+                            is_error = buffered_event.get("payload", {}).get("error", False)
+                            symbol = f"{C.red}✗{C.R}" if is_error else f"{C.green}●{C.R}"
+                            print(f"\r\033[K{symbol} {outcome}\n", end="", flush=True)
+                        del self.pending_calls[key]
+                        del self.result_buffers[key]
+                self._newline()
+                print()
 
             case "end":
                 self._newline()
@@ -272,6 +298,10 @@ class Renderer:
 
         return outcome or "ok"
 
+    def _call_key(self, call):
+        # Return a hashable key for the call to distinguish concurrent calls
+        return f"{call.name}::{str(call.args)}"
+
     async def _finalize(self):
         if not self.evo_mode:
             return
@@ -295,7 +325,9 @@ class Renderer:
             sum_storage = SummaryStorage()
             threshold = self.config.compact_threshold
 
-            culled = await maybe_cull(self.conv_id, "cogency", msg_storage, sum_storage, self.llm, threshold)
+            culled = await maybe_cull(
+                self.conv_id, "cogency", msg_storage, sum_storage, self.llm, threshold
+            )
 
             if culled:
                 new_id = str(uuid.uuid4())

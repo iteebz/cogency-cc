@@ -27,6 +27,7 @@ class Config:
     """Runtime configuration persisted to ~/.cogency-cc/config.json."""
 
     provider: str = "glm"
+    model: str | None = None
     mode: str = "resume"
     user_id: str = "new_user"
     conversation_id: str = "dev_work"
@@ -77,6 +78,7 @@ class Config:
 
         data = {
             "provider": self.provider,
+            "model": self.model,
             "mode": self.mode,
             "user_id": self.user_id,
             "conversation_id": self.conversation_id,
