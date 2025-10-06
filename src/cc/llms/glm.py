@@ -5,7 +5,7 @@ import aiohttp
 from cogency.core.protocols import LLM
 from cogency.lib.llms.interrupt import interruptible
 from cogency.lib.logger import logger
-from cogency.lib.rotation import get_api_key, with_rotation
+from cogency.lib.rotation import with_rotation
 
 
 class GLM(LLM):
@@ -16,9 +16,9 @@ class GLM(LLM):
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ):
-        self.api_key = api_key or get_api_key("glm")
-        if not self.api_key:
+        if not api_key:
             raise RuntimeError("No GLM API key found")
+        self.api_key = api_key
         self.http_model = http_model
         self.temperature = temperature
         self.max_tokens = max_tokens

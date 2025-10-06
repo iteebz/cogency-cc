@@ -21,7 +21,7 @@ def create_agent(app_config: Config, cli_instruction: str = "") -> Agent:
     model_name = _get_model_name(llm, app_config.provider)
     identity_with_model = f"You are Cogency Code powered by {model_name}.\n\n{identity}"
 
-    tools = tools.category(["file", "system", "web"]) if cli_instruction else None
+    tools = tools.category(["file", "system", "web"])
     max_iterations = 42
     profile = not cli_instruction
 

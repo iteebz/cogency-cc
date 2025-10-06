@@ -6,6 +6,7 @@ import uuid
 
 from .agent import create_agent
 from .conversations import get_last_conversation
+from .context import show_context
 from .instructions import find_project_root
 from .renderer import Renderer
 from .state import Config
@@ -67,6 +68,27 @@ def main() -> None:
             print(json.dumps(profile, indent=2))
         sys.exit(0)
 
+    if "--context" in sys.argv:
+        asyncio.run(show_context())
+        sys.exit(0)
+
+    if "--summary" in sys.argv:
+        from .summary import show_summary
+        asyncio.run(show_summary())
+        sys.exit(0)
+
+    if "--profile" in sys.argv:
+        from .profile import show_profile
+        asyncio.run(show_profile())
+        sys.exit(0)
+
+    if "--nuke" in sys.argv:
+        idx = sys.argv.index("--nuke")
+        if idx + 1 < len(sys.argv) and sys.argv[idx + 1] == "profile":
+            from .profile import nuke_profile
+            asyncio.run(nuke_profile())
+        sys.exit(0)
+
     config = Config(user_id="cogency")
     if provider:
         config.provider = provider
@@ -90,18 +112,7 @@ def main() -> None:
             sys.exit(1)
 
         query = " ".join(sys.argv[1:])
-        cli_instruction = (
-            ""
-            if resuming
-            else (
-                "CLI ONE-SHOT MODE\n"
-                "- Treat the next user message as the full task; there will be no follow-up prompts.\n"
-                "- Answer in your first §respond message with only the information the user requested.\n"
-                "- Do not introduce yourself, list capabilities, or ask questions.\n"
-                "- Immediately emit §end after delivering the answer.\n"
-                "- Example: user says 'what is 2+2' → respond '4' then §end."
-            )
-        )
+        cli_instruction = ""
 
         agent = create_agent(config, cli_instruction)
         asyncio.run(run_one_shot(agent, query, conv_id, resuming))
@@ -115,7 +126,7 @@ async def run_one_shot(agent, query: str, conv_id: str, resuming: bool = False):
     summaries = []
 
     if resuming:
-        summaries = await storage.load_turn_summaries(conv_id, limit=3)
+        pass
 
     llm = agent.config.llm if hasattr(agent, "config") else None
     renderer = Renderer(messages=msgs, llm=llm, conv_id=conv_id, summaries=summaries)
