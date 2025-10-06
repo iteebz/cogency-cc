@@ -30,9 +30,13 @@ async def show_context():
         return
 
     dist = {}
+    latest_metric = None
+    
     for m in msgs:
         t = m.get("type", "unknown")
         dist[t] = dist.get(t, 0) + 1
+        if t == "metric" and "total" in m:
+            latest_metric = m["total"]
 
     debug = "--debug" in sys.argv
 
@@ -43,8 +47,12 @@ async def show_context():
         pct = int(count / len(msgs) * 100)
         print(f"  {t}: {count} ({pct}%)")
     
-    est_tokens = sum(len(m.get("content", "")) // 4 for m in msgs)
-    print(f"{C.gray}estimated tokens: ~{est_tokens:,}{C.R}")
+    if latest_metric:
+        total = latest_metric.get("input", 0) + latest_metric.get("output", 0)
+        print(f"{C.gray}tokens: {latest_metric.get('input', 0)}→{latest_metric.get('output', 0)} ({total:,} total){C.R}")
+    else:
+        est_tokens = sum(len(m.get("content", "")) // 4 for m in msgs)
+        print(f"{C.gray}estimated tokens: ~{est_tokens:,}{C.R}")
     print()
 
     if not debug:

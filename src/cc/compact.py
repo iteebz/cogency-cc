@@ -25,14 +25,17 @@ Return JSON:
 Keep system prompt. Cull everything before timestamp. Be aggressive."""
 
 
-def _est_tokens(msgs: list[dict]) -> int:
+def _get_tokens(msgs: list[dict]) -> int:
+    for m in reversed(msgs):
+        if m.get("type") == "metric" and "total" in m:
+            return m["total"].get("input", 0) + m["total"].get("output", 0)
     return sum(len(m.get("content", "")) // 4 for m in msgs)
 
 
 async def maybe_cull(conversation_id: str, user_id: str, msg_storage, sum_storage: SummaryStorage, llm, threshold: int) -> bool:
     msgs = await msg_storage.load_messages(conversation_id, None)
     
-    if _est_tokens(msgs) < threshold:
+    if _get_tokens(msgs) < threshold:
         return False
     
     formatted = "\n".join([f"[{m.get('timestamp', 0)}] {m['type']}: {m['content'][:150]}" for m in msgs])
@@ -83,13 +86,13 @@ async def compact_context():
     sum_storage = SummaryStorage()
 
     msgs = await msg_storage.load_messages(conv_id, "cogency")
-    est_tokens = sum(len(m.get("content", "")) // 4 for m in msgs)
+    tokens = _get_tokens(msgs)
 
     print(f"{C.gray}conversation: {conv_id[:8]}{C.R}")
     print(f"{C.gray}messages: {len(msgs)}{C.R}")
-    print(f"{C.gray}estimated tokens: ~{est_tokens:,}{C.R}\n")
+    print(f"{C.gray}tokens: {tokens:,}{C.R}\n")
 
-    if est_tokens < config.compact_threshold:
+    if tokens < config.compact_threshold:
         print(f"{C.gray}Context under threshold ({config.compact_threshold:,} tokens), no compaction needed{C.R}")
         return
 
@@ -109,11 +112,11 @@ async def compact_context():
         config.update(conversation_id=new_id)
         
         msgs_after = await msg_storage.load_messages(conv_id, "cogency")
-        tokens_after = sum(len(m.get("content", "")) // 4 for m in msgs_after)
+        tokens_after = _get_tokens(msgs_after)
         
         print(f"{C.green}✓ Compacted context{C.R}")
         print(f"{C.gray}messages: {len(msgs)} → {len(msgs_after)}{C.R}")
-        print(f"{C.gray}tokens: ~{est_tokens:,} → ~{tokens_after:,}{C.R}")
+        print(f"{C.gray}tokens: {tokens:,} → {tokens_after:,}{C.R}")
         print(f"{C.cyan}new conversation: {new_id[:8]}{C.R}")
     else:
         print(f"{C.gray}No compaction performed{C.R}")
