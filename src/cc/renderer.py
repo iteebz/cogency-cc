@@ -23,12 +23,16 @@ class Renderer:
         llm=None,
         conv_id: str | None = None,
         summaries: list | None = None,
+        config=None,
+        evo_mode: bool = False,
     ):
         self.verbose = verbose
         self.messages = messages or []
         self.summaries = summaries or []
         self.llm = llm
         self.conv_id = conv_id
+        self.config = config
+        self.evo_mode = evo_mode
 
         self.state = None
         self.header_shown = False
@@ -269,10 +273,35 @@ class Renderer:
         return outcome or "ok"
 
     async def _finalize(self):
-        if not (self.turn_start and self.conv_id and self.llm):
+        if not self.evo_mode:
             return
 
-        asyncio.create_task(self._summarize())
+        if not (self.conv_id and self.llm and self.config):
+            return
 
-    async def _summarize(self):
-        pass
+        asyncio.create_task(self._evo_compact())
+
+    async def _evo_compact(self):
+        try:
+            import uuid
+
+            from cogency.lib.logger import logger
+            from cogency.lib.storage import SQLite
+
+            from .compact import maybe_cull
+            from .storage import SummaryStorage
+
+            msg_storage = SQLite()
+            sum_storage = SummaryStorage()
+            threshold = self.config.compact_threshold
+
+            culled = await maybe_cull(self.conv_id, "cogency", msg_storage, sum_storage, self.llm, threshold)
+
+            if culled:
+                new_id = str(uuid.uuid4())
+                self.config.update(conversation_id=new_id)
+                logger.debug(f"🔄 EVO: compacted → new conv {new_id[:8]}")
+        except Exception as e:
+            from cogency.lib.logger import logger
+
+            logger.debug(f"Evo compact failed: {e}")

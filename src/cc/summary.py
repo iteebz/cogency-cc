@@ -1,10 +1,9 @@
 """Summary inspection for conversations."""
 
-from cogency.lib.storage import SQLite
-
 from .conversations import get_last_conversation
 from .instructions import find_project_root
 from .lib.color import C
+from .storage import SummaryStorage
 
 
 async def show_summary():
@@ -18,7 +17,7 @@ async def show_summary():
         print("No conversation found")
         return
 
-    storage = SQLite()
+    storage = SummaryStorage()
     summaries = await storage.load_summaries(conv_id)
 
     if not summaries:

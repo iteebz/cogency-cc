@@ -32,8 +32,9 @@ class Config:
     conversation_id: str = "dev_work"
     tools: list[str] = field(default_factory=lambda: ["file", "web", "memory"])
     api_keys: dict[str, str] = field(default_factory=dict)
-    identity: str = field(default_factory=lambda: "code")  # NEW: identity configuration
-    token_limit: int = 100000  # Token limit for percentage calculation
+    identity: str = field(default_factory=lambda: "code")
+    token_limit: int = 100000
+    compact_threshold: int = 12000
 
     config_dir: Path = field(default_factory=lambda: _default_config_dir())
     config_file: Path = field(init=False)
@@ -74,7 +75,6 @@ class Config:
         """Save configuration to file."""
         self.config_dir.mkdir(exist_ok=True, mode=0o700)
 
-        # Convert to dict but exclude Path fields
         data = {
             "provider": self.provider,
             "mode": self.mode,
@@ -84,6 +84,7 @@ class Config:
             "api_keys": self.api_keys,
             "identity": self.identity,
             "token_limit": self.token_limit,
+            "compact_threshold": self.compact_threshold,
         }
 
         with open(self.config_file, "w", encoding="utf-8") as f:

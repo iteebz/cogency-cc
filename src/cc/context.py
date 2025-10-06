@@ -1,6 +1,7 @@
 """Context inspection for conversations."""
 
 import json
+import sys
 from pathlib import Path
 
 from cogency.lib.storage import SQLite
@@ -33,13 +34,22 @@ async def show_context():
         t = m.get("type", "unknown")
         dist[t] = dist.get(t, 0) + 1
 
+    debug = "--debug" in sys.argv
+
     print(f"{C.gray}conversation: {conv_id[:8]}{C.R}")
     print(f"{C.gray}messages: {len(msgs)}{C.R}")
     print(f"{C.gray}distribution:{C.R}")
     for t, count in sorted(dist.items(), key=lambda x: -x[1]):
         pct = int(count / len(msgs) * 100)
         print(f"  {t}: {count} ({pct}%)")
+    
+    est_tokens = sum(len(m.get("content", "")) // 4 for m in msgs)
+    print(f"{C.gray}estimated tokens: ~{est_tokens:,}{C.R}")
     print()
+
+    if not debug:
+        print(f"{C.gray}use --debug to see full messages{C.R}")
+        return
 
     for i, msg in enumerate(msgs):
         msg_type = msg.get("type", "unknown")

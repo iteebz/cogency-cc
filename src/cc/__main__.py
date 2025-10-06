@@ -17,6 +17,7 @@ def main() -> None:
     conv_id = None
     force_new = False
     interactive = False
+    evo_mode = False
 
     if "--debug" in sys.argv:
         sys.argv.remove("--debug")
@@ -39,6 +40,10 @@ def main() -> None:
     if "--new" in sys.argv:
         sys.argv.remove("--new")
         force_new = True
+
+    if "--evo" in sys.argv:
+        sys.argv.remove("--evo")
+        evo_mode = True
 
     if "--interactive" in sys.argv or "-i" in sys.argv:
         if "--interactive" in sys.argv:
@@ -89,6 +94,11 @@ def main() -> None:
             asyncio.run(nuke_profile())
         sys.exit(0)
 
+    if "--compact" in sys.argv:
+        from .compact import compact_context
+        asyncio.run(compact_context())
+        sys.exit(0)
+
     config = Config(user_id="cogency")
     if provider:
         config.provider = provider
@@ -115,10 +125,10 @@ def main() -> None:
         cli_instruction = ""
 
         agent = create_agent(config, cli_instruction)
-        asyncio.run(run_one_shot(agent, query, conv_id, resuming))
+        asyncio.run(run_one_shot(agent, query, conv_id, resuming, evo_mode, config))
 
 
-async def run_one_shot(agent, query: str, conv_id: str, resuming: bool = False):
+async def run_one_shot(agent, query: str, conv_id: str, resuming: bool = False, evo_mode: bool = False, config=None):
     from cogency.lib.storage import SQLite
 
     storage = SQLite()
@@ -129,7 +139,7 @@ async def run_one_shot(agent, query: str, conv_id: str, resuming: bool = False):
         pass
 
     llm = agent.config.llm if hasattr(agent, "config") else None
-    renderer = Renderer(messages=msgs, llm=llm, conv_id=conv_id, summaries=summaries)
+    renderer = Renderer(messages=msgs, llm=llm, conv_id=conv_id, summaries=summaries, config=config, evo_mode=evo_mode)
     stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=True)
     try:
         await renderer.render_stream(stream)
