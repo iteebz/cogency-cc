@@ -3,6 +3,7 @@
 import asyncio
 import sqlite3
 import time
+from pathlib import Path
 
 from cogency.lib.ids import uuid7
 from cogency.lib.storage import DB
@@ -11,8 +12,24 @@ from cogency.lib.storage import DB
 class SummaryStorage:
     """Manages conversation summaries and message culling."""
 
-    def __init__(self, db_path: str = ".cogency/store.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
+        """Initialize summary storage with secure path resolution.
+
+        Args:
+            db_path: Path to database file. If None, uses default .cogency/store.db
+        """
+        if db_path is None:
+            # Use secure absolute path resolution
+            cwd = Path.cwd()
+            self.db_path = str(cwd / ".cogency" / "store.db")
+        else:
+            # Convert to absolute path and validate
+            path = Path(db_path).resolve()
+            # Basic security check - ensure we're not escaping to unexpected locations
+            if not str(path).startswith(str(Path.cwd().resolve())):
+                raise ValueError(f"Database path must be within current directory: {path}")
+            self.db_path = str(path)
+
         self._init_schema()
 
     def _init_schema(self):

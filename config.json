@@ -1,0 +1,16 @@
+{
+  "provider": "gemini",
+  "model": "gemini-2.5-flash-live-preview",
+  "mode": "resume",
+  "user_id": "new_user",
+  "conversation_id": "dev_work",
+  "tools": [
+    "file",
+    "web",
+    "memory"
+  ],
+  "api_keys": {},
+  "identity": "code",
+  "token_limit": 100000,
+  "compact_threshold": 12000
+}

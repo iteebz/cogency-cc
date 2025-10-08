@@ -1,6 +1,9 @@
 """Pytest configuration and fixtures for cogency-cc testing."""
 
+import os
+import subprocess
 from collections.abc import AsyncGenerator
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -86,3 +89,57 @@ def mock_api_keys():
         },
     ):
         yield
+
+
+@pytest.fixture
+def cli_runner(tmp_path, monkeypatch):
+    # Use a consistent .cogency directory for the duration of a test
+    cogency_dir = tmp_path / ".cogency"
+    cogency_dir.mkdir(exist_ok=True)
+
+    env = os.environ.copy()
+    env["COGENCY_CONFIG_DIR"] = str(tmp_path)
+    env["CI"] = "true"  # Disable animations in tests
+
+    def _run_cli(command_args: list[str], expected_exit_code: int = 0):
+        # Mock input to automatically say 'y' for overwrite prompts
+        monkeypatch.setattr("builtins.input", lambda _: "y")
+        cmd = ["python", "-m", "src.cc"] + command_args
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=Path(__file__).parent.parent,  # Go up to cogency-cc root
+        )
+        print(f"\nCommand: {' '.join(cmd)}")
+        print(f"Stdout: {result.stdout}")
+        print(f"Stderr: {result.stderr}")
+        assert result.returncode == expected_exit_code
+        return result
+
+    return _run_cli
+
+
+@pytest.fixture
+def clear_db_initialized_paths():
+    """Fixture to clear the DB._initialized_paths before each test."""
+    from src.cc.storage_ext import DB
+
+    DB._initialized_paths.clear()
+    yield
+    DB._initialized_paths.clear()
+
+
+@pytest.fixture
+def clean_config_file(tmp_path, clear_db_initialized_paths):
+    cogency_dir = tmp_path / ".cogency"
+    cogency_dir.mkdir(exist_ok=True)
+    config_file = cogency_dir / "cc.json"
+    db_file = cogency_dir / "store.db"
+
+    if config_file.exists():
+        os.remove(config_file)
+    if db_file.exists():
+        os.remove(db_file)
+    return config_file

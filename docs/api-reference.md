@@ -182,14 +182,12 @@ agent = Agent(llm=OpenAI(model="gpt-4o-mini"))
 ### Tools
 ```python
 from cogency.tools import (
-    # File tools
-    FileRead, FileWrite, FileEdit, FileList, FileSearch,
-    # Memory tools  
-    MemoryRecall,
-    # System tools
-    SystemShell,
+    # Code tools
+    Create, Grep, Read, Replace, Shell, Tree,
+    # Memory tools
+    Recall,
     # Web tools
-    WebSearch, WebScrape,
+    Scrape, Search,
     # Tool registry
     tools  # Default tool collection
 )

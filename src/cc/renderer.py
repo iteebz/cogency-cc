@@ -10,6 +10,7 @@ Event symbols:
 """
 
 import asyncio
+import os
 import time
 
 from .lib.color import C
@@ -47,6 +48,7 @@ class Renderer:
 
     async def render_stream(self, stream):
         self.turn_start = time.time()
+        self.processed_content = set()  # Track processed content to prevent duplicates
 
         try:
             async for event in stream:
@@ -55,6 +57,14 @@ class Renderer:
                 if not self.header_shown:
                     self._render_header()
                     self.header_shown = True
+
+                # Skip duplicate content events
+                if event.get("type") == "respond" and event.get("content"):
+                    content_str = event["content"]
+                    content_key = f"{event.get('timestamp')}_{content_str}"
+                    if content_key in self.processed_content:
+                        continue
+                    self.processed_content.add(content_key)
 
                 await self._render_event(event)
         except Exception as e:
@@ -168,18 +178,31 @@ class Renderer:
                 if self.pending_calls:
                     # Spin for the last call added
                     last_key = list(self.pending_calls.keys())[-1]
-                    self.spinner_task = asyncio.create_task(self._spin(self.pending_calls[last_key]))
+                    self.spinner_tasks[last_key] = asyncio.create_task(
+                        self._spin(self.pending_calls[last_key])
+                    )
 
             case "result":
-                if self.spinner_task:
-                    self.spinner_task.cancel()
-                    self.spinner_task = None
+                # Cancel all spinner tasks
+                for task in self.spinner_tasks.values():
+                    task.cancel()
+                self.spinner_tasks.clear()
 
-                if self.pending_call:
-                    if not hasattr(self, "result_buffer"):
-                        self.result_buffer = []
-                    self.result_buffer.append(e)
+                # Handle the result - try to match it with a pending call
+                call_key = None
+                if self.pending_calls:
+                    # If we have pending calls, assume this result is for the most recent one
+                    call_key = list(self.pending_calls.keys())[-1]
+                    call = self.pending_calls[call_key]
+
+                    # Buffer the result for later processing
+                    if not hasattr(self, "result_buffers"):
+                        self.result_buffers = {}
+                    if call_key not in self.result_buffers:
+                        self.result_buffers[call_key] = []
+                    self.result_buffers[call_key].append(e)
                 else:
+                    # No pending calls, display result directly
                     outcome = self._fmt_result(None, e)
                     is_error = e.get("payload", {}).get("error", False)
                     symbol = f"{C.red}✗{C.R}" if is_error else f"{C.green}●{C.R}"
@@ -200,11 +223,8 @@ class Renderer:
                         del self.result_buffers[key]
                 self._newline()
                 print()
-
-            case "end":
-                self._newline()
-                print()
                 await self._finalize()
+                await self._rolling_summary()
 
             case "error":
                 msg = e.get("payload", {}).get("error") or e.get("content", "Unknown error")
@@ -214,6 +234,9 @@ class Renderer:
                 print(f"{C.yellow}⚠{C.R} Interrupted")
 
     async def _think_spin(self):
+        if os.getenv("CI") == "true":
+            return
+
         frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         i = 0
         start = time.time()
@@ -227,6 +250,9 @@ class Renderer:
             pass
 
     async def _spin(self, call):
+        if os.getenv("CI") == "true":
+            return
+
         frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         i = 0
         start = time.time()
@@ -301,6 +327,100 @@ class Renderer:
     def _call_key(self, call):
         # Return a hashable key for the call to distinguish concurrent calls
         return f"{call.name}::{str(call.args)}"
+
+    async def _rolling_summary(self):
+        """Generate rolling summary after each message completion."""
+        if not self.conv_id or not self.config or not self.config.enable_rolling_summary:
+            return
+
+        try:
+            from cogency.lib.storage import SQLite
+
+            from .storage import SummaryStorage
+
+            msg_storage = SQLite()
+            sum_storage = SummaryStorage()
+            llm = self.llm
+
+            if not llm:
+                return
+
+            # Get recent messages since last summary
+            msgs = await msg_storage.load_messages(self.conv_id, "cogency")
+            summaries = await sum_storage.load_summaries(self.conv_id)
+
+            # Determine cutoff timestamp (last summary end or start of conversation)
+            cutoff_ts = summaries[-1]["end"] if summaries else msgs[0].get("timestamp", 0)
+
+            # Filter messages since last summary
+            recent_msgs = [m for m in msgs if m.get("timestamp", 0) > cutoff_ts]
+
+            # Only summarize if we have enough new messages
+            if len(recent_msgs) < self.config.rolling_summary_threshold:
+                return
+
+            # Generate summary
+            await self._generate_and_save_summary(recent_msgs, sum_storage, cutoff_ts)
+
+        except Exception as e:
+            from cogency.lib.logger import logger
+
+            logger.debug(f"Rolling summary failed: {e}")
+
+    async def _generate_and_save_summary(self, messages: list[dict], sum_storage, cutoff_ts: float):
+        """Generate and save a summary for the given messages."""
+        import time
+
+        try:
+            # Format messages for summarization
+            formatted_msgs = []
+            for m in messages:
+                t = m.get("type", "unknown")
+                content = m.get("content", "")[:200]  # Truncate for context
+                if content and t in ["user", "respond", "think"]:
+                    formatted_msgs.append(f"[{t}] {content}")
+
+            if not formatted_msgs:
+                return
+
+            # Generate summary using LLM
+            prompt = f"""Summarize this conversation excerpt in 1-2 concise sentences:
+
+{chr(10).join(formatted_msgs)}
+
+Focus on key actions, decisions, and outcomes. Be factual and brief."""
+
+            result = await asyncio.wait_for(
+                self.llm.generate([{"role": "user", "content": prompt}]), timeout=15.0
+            )
+
+            if not result:
+                return
+
+            summary = result.strip()
+            if not summary:
+                return
+
+            # Save summary
+            start_ts = messages[0].get("timestamp", time.time())
+            end_ts = messages[-1].get("timestamp", time.time())
+
+            await sum_storage.save_summary(
+                self.conv_id, "cogency", summary, len(messages), start_ts, end_ts
+            )
+
+            from cogency.lib.logger import logger
+
+            logger.debug(f"📝 Rolling summary: {len(messages)} msgs summarized")
+
+        except asyncio.TimeoutError:
+            from cogency.lib.logger import logger
+
+            logger.debug("Rolling summary generation timed out")
+        except Exception as e:
+            from cogency.lib.logger import logger
+
+            logger.debug(f"Rolling summary generation failed: {e}")
 
     async def _finalize(self):
         if not self.evo_mode:

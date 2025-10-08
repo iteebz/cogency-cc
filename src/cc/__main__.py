@@ -1,6 +1,7 @@
 """Entry point for cogency-cc CLI application."""
 
 import asyncio
+import datetime
 import shutil
 import sys
 import uuid
@@ -11,6 +12,21 @@ from .conversations import get_last_conversation
 from .instructions import find_project_root
 from .renderer import Renderer
 from .state import Config
+from .storage_ext import StorageExt
+from .sessions import SessionManager, handle_session_cli_commands
+
+session_manager_ext = StorageExt()
+session_manager = SessionManager(session_manager_ext)
+
+
+def _print_session_details(session: dict):
+    created_at = datetime.datetime.fromtimestamp(session["created_at"])
+    model_info = f"{session['model_config'].get('provider', 'N/A')}/{session['model_config'].get('model', 'N/A')}"
+    print(f"  Tag: {session['tag']}")
+    print(f"  Conversation ID: {session['conversation_id']}")
+    print(f"  Model: {model_info}")
+    print(f"  Created At: {created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+    print("----------------------------------------")
 
 
 def nuke_cogency_dir() -> None:
@@ -48,13 +64,59 @@ def main() -> None:
     }
 
     config = Config(user_id="cogency")
+    config.load()
 
+    # Model alias flags should be processed after loading config to override it
     for flag, values in model_alias_flags.items():
         if flag in sys.argv:
             sys.argv.remove(flag)
             config.provider = values.get("provider")
             config.model = values.get("model")
             break
+    config.save()  # Persist any changes
+
+    config, resuming = asyncio.run(handle_session_cli_commands(sys.argv, config, session_manager))
+
+    if "--set" in sys.argv:
+        idx = sys.argv.index("--set")
+        if idx + 1 < len(sys.argv):
+            set_arg = sys.argv[idx + 1]
+            if set_arg == "model":
+                if idx + 2 < len(sys.argv):
+                    model_name = sys.argv[idx + 2]
+                    sys.argv.pop(idx)
+                    sys.argv.pop(idx)
+                    sys.argv.pop(idx)
+
+                    found_model = False
+                    for flag, values in model_alias_flags.items():
+                        # Remove leading -- from flag for comparison
+                        if flag[2:] == model_name:
+                            config.provider = values.get("provider")
+                            config.model = values.get("model")
+                            print(f"Model set to: {config.provider}/{config.model}")
+                            found_model = True
+                            break
+
+                    if not found_model:
+                        print(f"Error: Unknown model alias '{model_name}'.", file=sys.stderr)
+                        print("Available model aliases:", file=sys.stderr)
+                        for flag in model_alias_flags:
+                            print(f"  - {flag[2:]}", file=sys.stderr)
+                        sys.exit(1)
+                else:
+                    print("Error: --set model requires a model name.", file=sys.stderr)
+                    sys.exit(1)
+            else:
+                print(
+                    f"Error: Unknown --set argument: {set_arg}. Only 'model' is supported.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+        else:
+            print("Error: --set requires an argument (e.g., model).", file=sys.stderr)
+            sys.exit(1)
+        sys.exit(0)  # Exit after setting the model
 
     if "--new" in sys.argv:
         sys.argv.remove("--new")
@@ -93,12 +155,6 @@ def main() -> None:
         from .summary import show_summary
 
         asyncio.run(show_summary())
-        sys.exit(0)
-
-    if "--profile" in sys.argv:
-        from .profile import show_profile
-
-        asyncio.run(show_profile())
         sys.exit(0)
 
     if "--nuke" in sys.argv:
@@ -159,7 +215,10 @@ async def run(
     )
     stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=True)
     try:
-        await renderer.render_stream(stream)
+        await asyncio.wait_for(renderer.render_stream(stream), timeout=60.0)
+    except asyncio.TimeoutError:
+        print("\nAgent execution timed out after 60 seconds.")
+        return
     finally:
         if stream and hasattr(stream, "aclose"):
             await stream.aclose()

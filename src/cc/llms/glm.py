@@ -97,7 +97,7 @@ class GLM(LLM):
                     logger.debug(f"  msg[{i}] {m.get('role')}: {m.get('content', '')[:80]}")
 
                 url = "https://api.z.ai/api/coding/paas/v4/chat/completions"
-                timeout = aiohttp.ClientTimeout(total=120, sock_read=30)
+                timeout = aiohttp.ClientTimeout(total=60, sock_read=15)  # Shorter timeouts
                 async with self._session.post(
                     url, headers=headers, json=data, timeout=timeout
                 ) as response:
@@ -110,13 +110,14 @@ class GLM(LLM):
                     try:
                         async for chunk in response.content.iter_any():
                             decoded = chunk.decode("utf-8")
+                            logger.debug(f"GLM raw decoded chunk: {repr(decoded[:100])}")
                             buffer += decoded
                             logger.debug(f"GLM buffer len={len(buffer)}")
 
                             while "\n" in buffer:
                                 line, buffer = buffer.split("\n", 1)
                                 line = line.rstrip()
-                                logger.debug(f"GLM line: {line[:80]}")
+                                logger.debug(f"GLM processed line: {repr(line[:100])}")
 
                                 if not line.startswith("data: "):
                                     continue
@@ -137,10 +138,13 @@ class GLM(LLM):
 
                                     content = delta.get("content", "")
                                     if content:
-                                        logger.debug(f"GLM chunk: {repr(content[:50])}")
+                                        logger.debug(f"GLM yielding content: {repr(content[:50])}")
                                         yield content
 
                                     finish_reason = choice.get("finish_reason")
+                                    if finish_reason == "stop":
+                                        logger.debug("GLM stream: stop received")
+                                        return
                                     if finish_reason:
                                         logger.debug(f"GLM stream: finish_reason={finish_reason}")
                                         return

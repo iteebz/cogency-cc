@@ -1,5 +1,6 @@
 """Configuration state management."""
 
+import dataclasses
 import json
 import os
 import tempfile
@@ -12,19 +13,19 @@ from cogency.lib.rotation import load_keys as rotated_keys
 
 def _default_config_dir() -> Path:
     """Select config directory based on environment."""
-    override = os.getenv("COGENCY_CODE_CONFIG_DIR")
+    override = os.getenv("COGENCY_CONFIG_DIR")
     if override:
-        return Path(override)
+        return Path(override) / ".cogency"
 
     if os.getenv("PYTEST_CURRENT_TEST"):
         return Path(tempfile.gettempdir()) / f"cogency-cc-tests-{os.getpid()}"
 
-    return Path.home() / ".cogency-cc"
+    return Path.home() / ".cogency"
 
 
 @dataclass
 class Config:
-    """Runtime configuration persisted to ~/.cogency-cc/config.json."""
+    """Runtime configuration persisted to ~/.cogency/cc.json."""
 
     provider: str = "glm"
     model: str | None = None
@@ -36,13 +37,14 @@ class Config:
     identity: str = field(default_factory=lambda: "code")
     token_limit: int = 100000
     compact_threshold: int = 12000
+    enable_rolling_summary: bool = True
+    rolling_summary_threshold: int = 10
 
     config_dir: Path = field(default_factory=lambda: _default_config_dir())
     config_file: Path = field(init=False)
 
     def __post_init__(self) -> None:
-        self.config_file = self.config_dir / "config.json"
-        self.load()
+        self.config_file = self.config_dir / "cc.json"
 
     def get_api_key(self, provider: str) -> str | None:
         """Get API key: environment variables override stored keys."""
@@ -98,6 +100,31 @@ class Config:
             if hasattr(self, key):
                 setattr(self, key, value)
         self.save()
+
+    def to_dict(self) -> dict:
+        """Return a dictionary representation of the config for serialization."""
+        return {
+            "provider": self.provider,
+            "model": self.model,
+            "mode": self.mode,
+            "user_id": self.user_id,
+            "conversation_id": self.conversation_id,
+            "tools": self.tools,
+            "identity": self.identity,
+            "token_limit": self.token_limit,
+            "compact_threshold": self.compact_threshold,
+            "enable_rolling_summary": self.enable_rolling_summary,
+            "rolling_summary_threshold": self.rolling_summary_threshold,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Config":
+        """Construct a Config object from a dictionary."""
+        # Filter out keys that are not part of the Config constructor
+        # This handles cases where the stored dict might have extra keys
+        valid_keys = {f.name for f in dataclasses.fields(cls) if f.init}
+        filtered_data = {k: v for k, v in data.items() if k in valid_keys}
+        return cls(**filtered_data)
 
 
 def list_conversations() -> list[dict]:

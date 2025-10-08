@@ -1,5 +1,6 @@
 """Manual context compaction."""
 
+import asyncio
 import json
 import time
 import uuid
@@ -39,44 +40,86 @@ async def maybe_cull(
     sum_storage: SummaryStorage,
     llm,
     threshold: int,
+    timeout: float = 30.0,
 ) -> bool:
-    msgs = await msg_storage.load_messages(conversation_id, None)
+    """Attempt to cull messages from conversation if threshold exceeded.
 
-    if _get_tokens(msgs) < threshold:
-        return False
+    Args:
+        conversation_id: ID of conversation to cull
+        user_id: User ID for the conversation
+        msg_storage: Message storage instance
+        sum_storage: Summary storage instance
+        llm: LLM instance for generating summaries
+        threshold: Token threshold for triggering culling
+        timeout: Timeout for LLM generation in seconds
 
-    formatted = "\n".join(
-        [f"[{m.get('timestamp', 0)}] {m['type']}: {m['content'][:150]}" for m in msgs]
-    )
-    prompt = CULL_PROMPT.format(messages=formatted)
-
-    result = await llm.generate([{"role": "user", "content": prompt}])
-    if not result:
-        return False
-
-    clean = result.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-
+    Returns:
+        True if culling was performed, False otherwise
+    """
     try:
-        data = json.loads(clean)
-        summary = data.get("summary", "")
-        cull_ts = data.get("cull_before_timestamp", 0)
-        keep_system = data.get("keep_system", True)
+        msgs = await msg_storage.load_messages(conversation_id, None)
 
-        if not summary or not cull_ts:
+        if _get_tokens(msgs) < threshold:
             return False
 
-        culled = await sum_storage.cull_messages(conversation_id, cull_ts, keep_system)
+        formatted = "\n".join(
+            [f"[{m.get('timestamp', 0)}] {m['type']}: {m['content'][:150]}" for m in msgs]
+        )
+        prompt = CULL_PROMPT.format(messages=formatted)
 
-        if culled > 0:
-            start_ts = msgs[0].get("timestamp", time.time())
-            await sum_storage.save_summary(
-                conversation_id, user_id, summary, culled, start_ts, cull_ts
+        # Add timeout and error handling for LLM call
+        try:
+            result = await asyncio.wait_for(
+                llm.generate([{"role": "user", "content": prompt}]), timeout=timeout
             )
-            logger.debug(f"🗑️  CULLED: {culled} msgs, kept summary")
-            return True
+        except asyncio.TimeoutError:
+            logger.warning(
+                f"LLM generation timed out after {timeout}s for conversation {conversation_id}"
+            )
+            return False
+        except Exception as e:
+            logger.error(f"LLM generation failed for conversation {conversation_id}: {e}")
+            return False
 
-    except json.JSONDecodeError as e:
-        logger.debug(f"Cull JSON error: {e}")
+        if not result:
+            logger.warning(f"Empty LLM result for conversation {conversation_id}")
+            return False
+
+        clean = (
+            result.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        )
+
+        try:
+            data = json.loads(clean)
+            summary = data.get("summary", "")
+            cull_ts = data.get("cull_before_timestamp", 0)
+            keep_system = data.get("keep_system", True)
+
+            if not summary or not cull_ts:
+                logger.warning(
+                    f"Invalid cull response: summary={bool(summary)}, cull_ts={bool(cull_ts)}"
+                )
+                return False
+
+            culled = await sum_storage.cull_messages(conversation_id, cull_ts, keep_system)
+
+            if culled > 0:
+                start_ts = msgs[0].get("timestamp", time.time())
+                await sum_storage.save_summary(
+                    conversation_id, user_id, summary, culled, start_ts, cull_ts
+                )
+                logger.debug(f"🗑️  CULLED: {culled} msgs, kept summary")
+                return True
+            logger.info(f"No messages to cull before timestamp {cull_ts}")
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Cull JSON decode error for conversation {conversation_id}: {e}")
+            logger.debug(f"Raw LLM output: {result}")
+        except Exception as e:
+            logger.error(f"Unexpected error during culling for conversation {conversation_id}: {e}")
+
+    except Exception as e:
+        logger.error(f"Failed to cull conversation {conversation_id}: {e}")
 
     return False
 

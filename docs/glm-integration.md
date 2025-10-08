@@ -127,16 +127,17 @@ GLM agent has access to standard cogency tools:
 ```python
 # Available tools:
 from cogency.tools import (
-    FileRead, FileWrite, FileEdit,    # File operations
-    FileList, FileSearch,             # File discovery
-    MemoryRecall,                     # Memory search
-    SystemShell,                      # Command execution
-    WebSearch, WebScrape,             # Web operations
+    # Code tools
+    Create, Grep, Read, Replace, Shell, Tree,
+    # Memory tools
+    Recall,
+    # Web tools
+    Scrape, Search,
 )
 
 # Example: File operations
 async for event in agent.stream("Read README.md and summarize"):
-    # GLM will automatically use FileRead tool
+    # GLM will automatically use code.read tool
     pass
 ```
 
