@@ -21,6 +21,11 @@ def _default_config_dir() -> Path:
     if os.getenv("PYTEST_CURRENT_TEST"):
         return Path(tempfile.gettempdir()) / f"cogency-cc-tests-{os.getpid()}"
 
+    # Check for a project-local .cogency directory
+    project_local_config_dir = Path.cwd() / ".cogency"
+    if project_local_config_dir.is_dir():
+        return project_local_config_dir
+
     return Path.home() / ".cogency"
 
 
@@ -79,7 +84,7 @@ class Config:
     def save(self) -> None:
         """Save configuration to file."""
         if not self.config_dir.exists():
-            self.config_dir.mkdir(mode=0o700)
+            self.config_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
 
         data = {
             "provider": self.provider,

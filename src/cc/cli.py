@@ -87,10 +87,7 @@ async def run_agent(
     )
     stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=True)
     try:
-        await asyncio.wait_for(renderer.render_stream(stream), timeout=60.0)
-    except asyncio.TimeoutError:
-        typer.echo("\nAgent execution timed out after 60 seconds.")
-        return
+        await renderer.render_stream(stream)
     finally:
         if stream and hasattr(stream, "aclose"):
             await stream.aclose()
@@ -105,6 +102,7 @@ app = typer.Typer(
     invoke_without_command=True,
     pretty_exceptions_enable=False,
     cls=RunGroup,
+    rich_markup_mode="rich",
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
 
@@ -113,13 +111,13 @@ app = typer.Typer(
 def main(
     ctx: typer.Context,
     debug: Annotated[
-        bool,
+        bool | None,
         typer.Option(
-            "--debug",
-            "-d",
-            help="Enable debug logging.",
+            "--debug/--no-debug",
+            "-d/-D",
+            help="Enable or disable debug logging for this run.",
         ),
-    ] = False,
+    ] = None,
     new: Annotated[
         bool,
         typer.Option(
@@ -157,13 +155,14 @@ def main(
         ),
     ] = None,
 ) -> None:
-    if debug:
+    config = Config(user_id="cogency")
+    config.load()
+    if debug is not None:
+        config.debug_mode = debug
+    if config.debug_mode:
         from cogency.lib.logger import set_debug
 
         set_debug(True)
-
-    config = Config(user_id="cogency")
-    config.load()
     apply_model_alias(config, model_alias)
     ctx.obj = {"config": config, "snapshots": Snapshots()}
     ctx.obj["root_flags"] = {
@@ -287,6 +286,28 @@ def default_cmd(
         if previous_cwd and Path.cwd() != previous_cwd:
             with contextlib.suppress(OSError):
                 os.chdir(previous_cwd)
+
+
+@app.command()
+def set(
+    ctx: typer.Context,
+    provider: Annotated[
+        str,
+        typer.Argument(help="The LLM provider to use (e.g., 'openai', 'gemini', 'glm')."),
+    ],
+    model: Annotated[
+        str | None,
+        typer.Argument(help="The specific model to use (e.g., 'gpt-4', 'gemini-pro')."),
+    ] = None,
+):
+    """Set the default LLM provider and model in the local configuration."""
+    config: Config = ctx.obj["config"]
+    config.provider = provider
+    config.model = model
+    config.save()
+    typer.echo(
+        f"Configuration updated: provider='{config.provider}', model='{config.model or 'default'}'"
+    )
 
 
 app.add_typer(session_app, name="session")

@@ -14,6 +14,8 @@ import os
 import re
 import time
 
+from rich import print as rprint
+
 from .lib.color import C
 
 
@@ -125,8 +127,11 @@ class Renderer:
                         self.state = "think"
                         self.first_chunk = True
                     content = e["content"].lstrip() if self.first_chunk else e["content"]
-                    self.first_chunk = False
-                    print(content, end="", flush=True)
+                    if self.first_chunk:
+                        print(content, end="", flush=True)
+                        self.first_chunk = False
+                    else:
+                        print(content, end="", flush=True)
 
             case "respond":
                 if self.thinking_task:
@@ -141,7 +146,7 @@ class Renderer:
                         self.first_chunk = True
                     content = e["content"].lstrip() if self.first_chunk else e["content"]
                     self.first_chunk = False
-                    print(content, end="", flush=True)
+                    rprint(content, end="", flush=True)
 
             case "call":
                 from cogency.tools.parse import parse_tool_call
@@ -281,6 +286,9 @@ class Renderer:
         return f"{base}: {outcome}"
 
     def _tool_name(self, name: str) -> str:
+        parts = name.split(".")
+        if len(parts) > 1:
+            return parts[-1]
         return name
 
     def _tool_arg(self, args: dict) -> str:
@@ -323,7 +331,9 @@ class Renderer:
         if not outcome:
             return "ok"
 
-        read_match = re.match(r"(Read|Wrote|Appended) (.+) \((\d+) lines?\)", outcome)
+        read_match = re.match(
+            r"(Grep simple clean|Wrote|Appended|Read) (.+) \((\d+) lines?\)", outcome
+        )
         if read_match:
             lines = read_match.group(3)
             return f"+{lines} lines"
@@ -374,7 +384,7 @@ class Renderer:
 
         msg_storage = SQLite()
         sum_storage = SummaryStorage()
-        threshold = 10  # Or some other appropriate value
+        threshold = getattr(self.config, "compact_threshold", 10)
 
         culled = await maybe_cull(
             self.conv_id, "cogency", msg_storage, sum_storage, self.llm, threshold

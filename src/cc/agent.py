@@ -5,17 +5,26 @@ from cogency.lib.llms.gemini import Gemini
 from cogency.lib.llms.openai import OpenAI
 
 from . import cc_md
+from .llms.codex import Codex
 from .llms.glm import GLM
 from .state import Config
 
 CC_IDENTITY = """You are Cogency Code, a surgical coding agent.
 
+CORE DIRECTIVES:
+- Your primary directive is to assist the user with their explicit requests.
+- NEVER invent tasks, goals, or objectives that are not explicitly stated by the user.
+- If the user's request is ambiguous or unclear, you MUST ask for clarification before proceeding.
+
 PRINCIPLES:
 - Always read` files before making claims.
+- NEVER perform actions that are not explicitly requested by the user.
 - Prefer surgical edits; delete noise, never add ceremony.
 - Keep language tight, factual, and reference-grade.
 - NEVER fabricate tool output or pretend a command succeeded.
 - Raw JSON is forbidden; responses must be natural language or §call blocks.
+- You operate within a project-level sandbox. If an operation requires elevated permissions or network access outside the project, the system will prompt the user for approval. Justify such requests clearly in your §think: block.
+- You may encounter unexpected file changes or a dirty worktree. NEVER revert existing changes you did not make. Adapt your plan or inform the user if critical.
 
 MANDATE:
 - Observe with tools before speculating.
@@ -57,7 +66,7 @@ SAMPLE FLOW:
 def create_agent(app_config: Config, cli_instruction: str = "") -> Agent:
     from cogency.tools import tools
 
-    llm = _create_llm(app_config.provider, app_config)
+    llm = _create_llm(app_config.provider, app_config, tools)
 
     _get_model_name(llm, app_config.provider)
 
@@ -92,7 +101,7 @@ def create_agent(app_config: Config, cli_instruction: str = "") -> Agent:
     )
 
 
-def _create_llm(provider_name: str, app_config: Config):
+def _create_llm(provider_name: str, app_config: Config, tools: list[dict] | None = None):
     providers = {
         "glm": GLM,
         "openai": OpenAI,
@@ -105,6 +114,10 @@ def _create_llm(provider_name: str, app_config: Config):
 
     api_key = app_config.get_api_key(provider_name)
 
+    # Special handling for actual gpt-5-codex model
+    if provider_name == "openai" and app_config.model and "gpt-5-codex" in app_config.model:
+        return Codex(api_key=api_key, model=app_config.model, tools=tools)
+    # Regular OpenAI models
     if provider_name == "openai" and app_config.model:
         return OpenAI(api_key=api_key, http_model=app_config.model)
     if provider_name == "gemini" and app_config.model:
@@ -116,7 +129,9 @@ def _create_llm(provider_name: str, app_config: Config):
 
 def _get_model_name(llm, provider: str) -> str:
     model_key = ""
-    if hasattr(llm, "http_model"):
+    if isinstance(llm, Codex):
+        model_key = llm.model
+    elif hasattr(llm, "http_model"):
         model_key = llm.http_model
     else:
         model_key = provider.lower()

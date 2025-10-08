@@ -1,8 +1,9 @@
 """Conversation listing utilities for cogency-cc."""
 
-import sqlite3
 import time
 from pathlib import Path
+
+from cogency.lib.storage import DB
 
 
 async def list_conversations(base_dir: str = None, limit: int = 10) -> list[dict]:
@@ -16,7 +17,7 @@ async def list_conversations(base_dir: str = None, limit: int = 10) -> list[dict
         return []
 
     def _sync_query():
-        with sqlite3.connect(db_path) as db:
+        with DB.connect(db_path) as db:
             # Get first user message for each conversation
             cursor = db.execute(
                 """
@@ -75,7 +76,7 @@ def get_last_conversation(base_dir: str = None) -> str | None:
     if not db_path.exists():
         return None
 
-    with sqlite3.connect(db_path) as db:
+    with DB.connect(db_path) as db:
         cursor = db.execute(
             """
             SELECT conversation_id

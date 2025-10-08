@@ -153,4 +153,12 @@ def test_default_config_dir_logic():
     # 3. Default to home directory
     with patch.dict("os.environ", clear=True):
         with patch("pathlib.Path.home", return_value=Path("/fake/home")):
-            assert _default_config_dir() == Path("/fake/home/.cogency")
+            with patch("cc.state.Path") as mock_path:
+                # Mock Path.cwd() to return a fake directory
+                mock_path.cwd.return_value = Path("/fake/cwd")
+                # Mock the project-local .cogency directory to not exist
+                mock_path.return_value.is_dir.return_value = False
+                # Mock Path.home() to return our fake home
+                mock_path.home.return_value = Path("/fake/home")
+
+                assert _default_config_dir() == Path("/fake/home/.cogency")
