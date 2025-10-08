@@ -26,8 +26,6 @@ class Renderer:
         summaries: list | None = None,
         config=None,
         evo_mode: bool = False,
-        enable_rolling_summary: bool = True,
-        rolling_summary_threshold: int = 10,
     ):
         self.verbose = verbose
         self.messages = messages or []
@@ -36,8 +34,7 @@ class Renderer:
         self.conv_id = conv_id
         self.config = config
         self.evo_mode = evo_mode
-        self.enable_rolling_summary = enable_rolling_summary
-        self.rolling_summary_threshold = rolling_summary_threshold
+        self.enable_rolling_summary = False
 
         self.state = None
         self.header_shown = False
@@ -138,7 +135,7 @@ class Renderer:
                 if e["content"] and e["content"].strip():
                     if self.state != "respond":
                         self._newline()
-                        print(f"{C.MAGENTA}>{C.R} ", end="", flush=True)
+                        print(f"{C.MAGENTA}›{C.R} ", end="", flush=True)
                         self.state = "respond"
                         self.first_chunk = True
                     content = e["content"].lstrip() if self.first_chunk else e["content"]
@@ -217,7 +214,6 @@ class Renderer:
                 self._newline()
                 print()
                 await self._finalize()
-                await self._rolling_summary()
 
             case "error":
                 msg = e.get("payload", {}).get("error") or e.get("content", "Unknown error")
@@ -318,100 +314,6 @@ class Renderer:
     def _call_key(self, call):
         # Return a hashable key for the call to distinguish concurrent calls
         return f"{call.name}::{str(call.args)}"
-
-    async def _rolling_summary(self):
-        """Generate rolling summary after each message completion."""
-        if not self.conv_id or not self.llm or not self.enable_rolling_summary:
-            return
-
-        try:
-            from cogency.lib.storage import SQLite
-
-            from .storage import SummaryStorage
-
-            msg_storage = SQLite()
-            sum_storage = SummaryStorage()
-            llm = self.llm
-
-            if not llm:
-                return
-
-            # Get recent messages since last summary
-            msgs = await msg_storage.load_messages(self.conv_id, "cogency")
-            summaries = await sum_storage.load_summaries(self.conv_id)
-
-            # Determine cutoff timestamp (last summary end or start of conversation)
-            cutoff_ts = summaries[-1]["end"] if summaries else msgs[0].get("timestamp", 0)
-
-            # Filter messages since last summary
-            recent_msgs = [m for m in msgs if m.get("timestamp", 0) > cutoff_ts]
-
-            # Only summarize if we have enough new messages
-            if len(recent_msgs) < self.rolling_summary_threshold:
-                return
-
-            # Generate summary
-            await self._generate_and_save_summary(recent_msgs, sum_storage, cutoff_ts)
-
-        except Exception as e:
-            from cogency.lib.logger import logger
-
-            logger.debug(f"Rolling summary failed: {e}")
-
-    async def _generate_and_save_summary(self, messages: list[dict], sum_storage, cutoff_ts: float):
-        """Generate and save a summary for the given messages."""
-        import time
-
-        try:
-            # Format messages for summarization
-            formatted_msgs = []
-            for m in messages:
-                t = m.get("type", "unknown")
-                content = m.get("content", "")[:200]  # Truncate for context
-                if content and t in ["user", "respond", "think"]:
-                    formatted_msgs.append(f"[{t}] {content}")
-
-            if not formatted_msgs:
-                return
-
-            # Generate summary using LLM
-            prompt = f"""Summarize this conversation excerpt in 1-2 concise sentences:
-
-{chr(10).join(formatted_msgs)}
-
-Focus on key actions, decisions, and outcomes. Be factual and brief."""
-
-            result = await asyncio.wait_for(
-                self.llm.generate([{"role": "user", "content": prompt}]), timeout=15.0
-            )
-
-            if not result:
-                return
-
-            summary = result.strip()
-            if not summary:
-                return
-
-            # Save summary
-            start_ts = messages[0].get("timestamp", time.time())
-            end_ts = messages[-1].get("timestamp", time.time())
-
-            await sum_storage.save_summary(
-                self.conv_id, "cogency", summary, len(messages), start_ts, end_ts
-            )
-
-            from cogency.lib.logger import logger
-
-            logger.debug(f"📝 Rolling summary: {len(messages)} msgs summarized")
-
-        except asyncio.TimeoutError:
-            from cogency.lib.logger import logger
-
-            logger.debug("Rolling summary generation timed out")
-        except Exception as e:
-            from cogency.lib.logger import logger
-
-            logger.debug(f"Rolling summary generation failed: {e}")
 
     async def _finalize(self):
         if not self.evo_mode:

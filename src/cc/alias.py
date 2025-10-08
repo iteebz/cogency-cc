@@ -8,5 +8,6 @@ MODEL_ALIASES = {
         "model": "gemini-1.5-flash-latest",
     },  # Assuming a common "live" model
     "sonnet": {"provider": "anthropic", "model": "claude-sonnet-4-5"},
+    "gpt4o": {"provider": "openai", "model": "gpt-4o"},
     # Add more as needed
 }

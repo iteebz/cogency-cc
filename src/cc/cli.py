@@ -1,9 +1,9 @@
 import asyncio
-import sys
 import uuid
 from typing import Annotated
 
 import typer
+from click import Context, UsageError
 
 from .agent import create_agent
 from .alias import MODEL_ALIASES
@@ -14,6 +14,46 @@ from .renderer import Renderer
 from .session import session_app
 from .state import Config
 from .storage import Snapshots
+
+
+class DefaultRunGroup(typer.core.TyperGroup):
+    """Group that falls back to a default command when none is provided."""
+
+    def __init__(self, *args, **kwargs):
+        self._default_command: str | None = kwargs.pop("default_command", None)
+        super().__init__(*args, **kwargs)
+
+    def resolve_command(self, ctx: Context, args):
+        try:
+            return super().resolve_command(ctx, args)
+        except UsageError:
+            if self._default_command:
+                default_cmd = self.get_command(ctx, self._default_command)
+                if default_cmd is None:
+                    raise
+                return self._default_command, default_cmd, args
+            raise
+
+
+class RunGroup(DefaultRunGroup):
+    """Default group for cc CLI that falls back to `run`."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, default_command="run", **kwargs)
+
+
+def apply_model_alias(config: Config, model_alias: str | None) -> None:
+    """Apply a model alias to the config if provided."""
+    if not model_alias:
+        return
+
+    if model_alias not in MODEL_ALIASES:
+        typer.echo(f"Unknown model alias: {model_alias}")
+        raise typer.Exit(code=1)
+
+    values = MODEL_ALIASES[model_alias]
+    config.provider = values.get("provider", config.provider)
+    config.model = values.get("model")
 
 
 async def run_agent(
@@ -63,6 +103,8 @@ app = typer.Typer(
     help="Cogency Code CLI for interacting with AI agents.",
     invoke_without_command=True,
     pretty_exceptions_enable=False,
+    cls=RunGroup,
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
 
 
@@ -77,6 +119,42 @@ def main(
             help="Enable debug logging.",
         ),
     ] = False,
+    new: Annotated[
+        bool,
+        typer.Option(
+            "--new",
+            "-n",
+            help="Start a new conversation, ignoring history.",
+            rich_help_panel="Run Options",
+        ),
+    ] = False,
+    evo: Annotated[
+        bool,
+        typer.Option(
+            "--evo",
+            "-e",
+            help="Enable evolutionary mode (experimental).",
+            rich_help_panel="Run Options",
+        ),
+    ] = False,
+    conversation_id_arg: Annotated[
+        str | None,
+        typer.Option(
+            "--conv",
+            "-c",
+            help="Specify a conversation ID to resume or start.",
+            rich_help_panel="Run Options",
+        ),
+    ] = None,
+    model_alias: Annotated[
+        str | None,
+        typer.Option(
+            "--model-alias",
+            "-m",
+            help="Use a predefined model alias.",
+            rich_help_panel="Run Options",
+        ),
+    ] = None,
 ) -> None:
     if debug:
         from cogency.lib.logger import set_debug
@@ -85,7 +163,25 @@ def main(
 
     config = Config(user_id="cogency")
     config.load()
+    apply_model_alias(config, model_alias)
     ctx.obj = {"config": config, "snapshots": Snapshots()}
+
+    if ctx.invoked_subcommand is None:
+        if not ctx.args:  # no query provided, show help as usual
+            typer.echo(ctx.get_help())
+            raise typer.Exit()
+
+        # Directly execute the default run command so root-level flags still apply.
+        run_cmd(
+            ctx,
+            list(ctx.args),
+            new=new,
+            evo=evo,
+            conversation_id_arg=conversation_id_arg,
+            model_alias=model_alias,
+            save_config=False,
+        )
+        raise typer.Exit()
 
 
 @app.command("run")
@@ -128,22 +224,23 @@ def run_cmd(
             rich_help_panel="Model Configuration",
         ),
     ] = None,
+    save_config: Annotated[
+        bool,
+        typer.Option(hidden=True),
+    ] = True,
 ):
     """Run a query with the agent."""
     config: Config = ctx.obj["config"]
 
-    if model_alias:
-        values = MODEL_ALIASES[model_alias]
-        config.provider = values.get("provider")
-        config.model = values.get("model")
-    config.save()
-
+    apply_model_alias(config, model_alias)
+    if save_config:
+        config.save()
     query = " ".join(query_parts)
     if not query:
-        typer.echo(ctx.parent.get_help())
-        sys.exit(0)
+        parent = ctx.parent or ctx
+        typer.echo(parent.get_help())
+        raise typer.Exit()
 
-    # Resolve conversation ID
     resuming_or_forking = False
     current_conv_id = conversation_id_arg
     resuming = False

@@ -26,8 +26,8 @@ packages = [
 ]
 
 [tool.poetry.scripts]
-cc = "cc.cli:main"
-cogency = "cc.cli:main"
+cc = "cc.__main__:main"
+cogency = "cc.__main__:main"
 cc-setup = "cc.setup:setup_shell"
 
 [tool.poetry.dependencies]

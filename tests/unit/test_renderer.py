@@ -37,7 +37,7 @@ async def test_think_and_respond(capsys, mock_config):
 
     captured = capsys.readouterr()
     expected_output = (
-        f"\n{C.GRAY}~{C.R} First, I will ponder.\n{C.MAGENTA}>{C.R} Then, I will answer."
+        f"\n{C.GRAY}~{C.R} First, I will ponder.\n{C.MAGENTA}›{C.R} Then, I will answer."
     )
     assert captured.out.strip() == expected_output.strip()
 
