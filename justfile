@@ -6,12 +6,17 @@ clean:
     @find . -type d -name "__pycache__" -exec rm -rf {} +
 
 install:
+    @poetry lock
     @poetry install
+
+reload:
+    @poetry remove cogency
+    @poetry install ../cogency
 
 ci: format fix test build
 
 test:
-    @PYTHONPATH=src poetry run python -m pytest tests -v
+    @PYTHONPATH=src:/Users/teebz/dev/space/public/cogency/src poetry run python -m pytest tests -v
 
 format:
     @poetry run ruff format .

@@ -1,9 +1,12 @@
 import asyncio
+import contextlib
+import os
 import uuid
+from pathlib import Path
 from typing import Annotated
 
+import click
 import typer
-from click import Context, UsageError
 
 from .agent import create_agent
 from .alias import MODEL_ALIASES
@@ -23,10 +26,10 @@ class DefaultRunGroup(typer.core.TyperGroup):
         self._default_command: str | None = kwargs.pop("default_command", None)
         super().__init__(*args, **kwargs)
 
-    def resolve_command(self, ctx: Context, args):
+    def resolve_command(self, ctx: click.Context, args):
         try:
             return super().resolve_command(ctx, args)
-        except UsageError:
+        except click.UsageError:
             if self._default_command:
                 default_cmd = self.get_command(ctx, self._default_command)
                 if default_cmd is None:
@@ -36,10 +39,10 @@ class DefaultRunGroup(typer.core.TyperGroup):
 
 
 class RunGroup(DefaultRunGroup):
-    """Default group for cc CLI that falls back to `run`."""
+    """Default group for cc CLI that falls back to the default handler."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, default_command="run", **kwargs)
+        super().__init__(*args, default_command="__default__", **kwargs)
 
 
 def apply_model_alias(config: Config, model_alias: str | None) -> None:
@@ -81,8 +84,6 @@ async def run_agent(
         summaries=summaries,
         config=config,
         evo_mode=evo_mode,
-        enable_rolling_summary=config.enable_rolling_summary,
-        rolling_summary_threshold=config.rolling_summary_threshold,
     )
     stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=True)
     try:
@@ -165,27 +166,20 @@ def main(
     config.load()
     apply_model_alias(config, model_alias)
     ctx.obj = {"config": config, "snapshots": Snapshots()}
+    ctx.obj["root_flags"] = {
+        "new": new,
+        "evo": evo,
+        "conversation_id": conversation_id_arg,
+        "model_alias": model_alias,
+    }
 
-    if ctx.invoked_subcommand is None:
-        if not ctx.args:  # no query provided, show help as usual
-            typer.echo(ctx.get_help())
-            raise typer.Exit()
-
-        # Directly execute the default run command so root-level flags still apply.
-        run_cmd(
-            ctx,
-            list(ctx.args),
-            new=new,
-            evo=evo,
-            conversation_id_arg=conversation_id_arg,
-            model_alias=model_alias,
-            save_config=False,
-        )
-        raise typer.Exit()
+    if ctx.invoked_subcommand is None and not ctx.args:  # no query provided, show help as usual
+        typer.echo(ctx.get_help())
+        raise typer.Exit(code=2)
 
 
-@app.command("run")
-def run_cmd(
+@app.command("__default__", hidden=True)
+def default_cmd(
     ctx: typer.Context,
     query_parts: Annotated[
         list[str],
@@ -231,34 +225,68 @@ def run_cmd(
 ):
     """Run a query with the agent."""
     config: Config = ctx.obj["config"]
+    previous_cwd: Path | None = None
+    project_root = root()
 
-    apply_model_alias(config, model_alias)
-    if save_config:
-        config.save()
-    query = " ".join(query_parts)
-    if not query:
-        parent = ctx.parent or ctx
-        typer.echo(parent.get_help())
-        raise typer.Exit()
+    if project_root:
+        current_cwd = Path.cwd()
+        if current_cwd != project_root:
+            try:
+                os.chdir(project_root)
+                previous_cwd = current_cwd
+            except OSError as e:
+                typer.echo(f"Failed to switch to project root {project_root}: {e}")
+                raise typer.Exit(code=1) from e
 
-    resuming_or_forking = False
-    current_conv_id = conversation_id_arg
-    resuming = False
+    try:
+        root_flags = ctx.obj.get("root_flags", {})
+        if not new and root_flags.get("new"):
+            new = True
+        if not evo and root_flags.get("evo"):
+            evo = True
+        if conversation_id_arg is None and root_flags.get("conversation_id"):
+            conversation_id_arg = root_flags["conversation_id"]
+        if not model_alias and root_flags.get("model_alias"):
+            model_alias = root_flags["model_alias"]
 
-    if not current_conv_id and not new and not resuming_or_forking:
-        project_root = root()
-        if project_root:
-            last_conv_id = get_last_conversation(str(project_root))
-            if last_conv_id:
-                current_conv_id = last_conv_id
+        apply_model_alias(config, model_alias)
+        if save_config:
+            config.save()
+        query = " ".join(query_parts)
+        if not query:
+            parent = ctx.parent or ctx
+            typer.echo(parent.get_help())
+            raise typer.Exit()
+
+        resuming = False
+
+        if new:
+            current_conv_id = str(uuid.uuid4())
+            typer.echo(f"Starting new conversation with ID: {current_conv_id}")
+        elif conversation_id_arg:
+            current_conv_id = conversation_id_arg
+            resuming = True
+        else:
+            project_root = root()
+            current_conv_id = None
+            if project_root:
+                current_conv_id = get_last_conversation(str(project_root))
+            if not current_conv_id:
+                current_conv_id = get_last_conversation()
+            if current_conv_id:
                 resuming = True
+            else:
+                current_conv_id = str(uuid.uuid4())
 
-    if not current_conv_id:
-        current_conv_id = str(uuid.uuid4())
+        config.conversation_id = current_conv_id
 
-    agent = create_agent(config, "")
-    typer.echo(f"Using model: {config.model or config.provider}")
-    asyncio.run(run_agent(agent, query, current_conv_id, resuming, evo, config))
+        agent = create_agent(config, "")
+        typer.echo(f"Using model: {config.model or config.provider}")
+        asyncio.run(run_agent(agent, query, current_conv_id, resuming, evo, config))
+    finally:
+        if previous_cwd and Path.cwd() != previous_cwd:
+            with contextlib.suppress(OSError):
+                os.chdir(previous_cwd)
 
 
 app.add_typer(session_app, name="session")

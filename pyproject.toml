@@ -33,8 +33,8 @@ cc-setup = "cc.setup:setup_shell"
 [tool.poetry.dependencies]
 python = ">=3.11,<4.0"
 aiohttp = "^3.9.0"
-cogency = {path = "../cogency"}
 typer = "^0.17.4"
+cogency = {path = "../cogency"}
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.13.0"

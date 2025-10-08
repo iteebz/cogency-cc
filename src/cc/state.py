@@ -35,11 +35,8 @@ class Config:
     conversation_id: str = "dev_work"
     tools: list[str] = field(default_factory=lambda: ["file", "web", "memory"])
     api_keys: dict[str, str] = field(default_factory=dict)
-    identity: str = field(default_factory=lambda: "code")
     token_limit: int = 100000
     compact_threshold: int = 12000
-    enable_rolling_summary: bool = True
-    rolling_summary_threshold: int = 10
     debug_mode: bool = False  # Added debug_mode
 
     config_dir: Path = field(default_factory=lambda: _default_config_dir())
@@ -92,14 +89,10 @@ class Config:
             "conversation_id": self.conversation_id,
             "tools": self.tools,
             "api_keys": self.api_keys,
-            "identity": self.identity,
             "token_limit": self.token_limit,
             "compact_threshold": self.compact_threshold,
-            "enable_rolling_summary": self.enable_rolling_summary,
-            "rolling_summary_threshold": self.rolling_summary_threshold,
             "debug_mode": self.debug_mode,  # Added debug_mode
         }
-
         with open(self.config_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
 
@@ -119,11 +112,9 @@ class Config:
             "user_id": self.user_id,
             "conversation_id": self.conversation_id,
             "tools": self.tools,
-            "identity": self.identity,
+            "api_keys": self.api_keys,
             "token_limit": self.token_limit,
             "compact_threshold": self.compact_threshold,
-            "enable_rolling_summary": self.enable_rolling_summary,
-            "rolling_summary_threshold": self.rolling_summary_threshold,
             "debug_mode": self.debug_mode,  # Added debug_mode
         }
 

@@ -11,6 +11,7 @@ Event symbols:
 
 import asyncio
 import os
+import re
 import time
 
 from .lib.color import C
@@ -40,12 +41,12 @@ class Renderer:
         self.header_shown = False
         self.first_chunk = True
         self.pending_calls = {}
-        self.result_buffers = {}
         self.spinner_tasks = {}
         self.thinking_task = None
         self.turn_start = None
         self.turn_events = []
         self.turn_tools = 0
+        self.call_start_times = {}
 
     async def render_stream(self, stream):
         self.turn_start = time.time()
@@ -134,7 +135,7 @@ class Renderer:
                     print("\r\033[K", end="", flush=True)
                 if e["content"] and e["content"].strip():
                     if self.state != "respond":
-                        self._newline()
+                        self._newline(force=True)
                         print(f"{C.MAGENTA}›{C.R} ", end="", flush=True)
                         self.state = "respond"
                         self.first_chunk = True
@@ -158,8 +159,11 @@ class Renderer:
                     call = parse_tool_call(e.get("content", ""))
                     key = self._call_key(call)
                     self.pending_calls[key] = call
-                    self.result_buffers[key] = []
-                    print(f"{C.CYAN}○{C.R} {self._fmt_call(call)}", end="", flush=True)
+                    print(
+                        f"{C.GRAY}○{C.R} {C.GRAY}{self._fmt_call(call)}{C.R}",
+                        end="",
+                        flush=True,
+                    )
                 except Exception:
                     # Remove last call on exception
                     if self.pending_calls:
@@ -170,6 +174,7 @@ class Renderer:
                 if self.pending_calls:
                     # Spin for the last call added
                     last_key = list(self.pending_calls.keys())[-1]
+                    self.call_start_times[last_key] = time.time()
                     self.spinner_tasks[last_key] = asyncio.create_task(
                         self._spin(self.pending_calls[last_key])
                     )
@@ -185,32 +190,35 @@ class Renderer:
                 if self.pending_calls:
                     # If we have pending calls, assume this result is for the most recent one
                     call_key = list(self.pending_calls.keys())[-1]
-                    call = self.pending_calls[call_key]
+                    call = self.pending_calls.pop(call_key)
+                    duration = None
+                    if start := self.call_start_times.pop(call_key, None):
+                        duration = time.time() - start
 
-                    # Buffer the result for later processing
-                    if call_key not in self.result_buffers:
-                        self.result_buffers[call_key] = []
-                    self.result_buffers[call_key].append(e)
-                else:
-                    # No pending calls, display result directly
-                    outcome = self._fmt_result(None, e)
-                    is_error = e.get("payload", {}).get("error")
+                    outcome = self._fmt_result(call, e, duration)
+                    is_error = e.get("payload", {}).get("error", False)
                     symbol = f"{C.RED}✗{C.R}" if is_error else f"{C.GREEN}●{C.R}"
                     print(f"\r\033[K{symbol} {outcome}\n", end="", flush=True)
+                    self.state = None
+                else:
+                    # No pending calls, display result directly
+                    payload = e.get("payload", {})
+                    outcome = self._tool_outcome(payload)
+                    if outcome:
+                        message = outcome
+                    else:
+                        message = payload.get("message", "ok")
+                    is_error = e.get("payload", {}).get("error")
+                    symbol = f"{C.RED}✗{C.R}" if is_error else f"{C.GREEN}●{C.R}"
+                    print(f"\r\033[K{symbol} {message}\n", end="", flush=True)
                     self.state = None
 
             case "end":
                 # Flush buffered results before ending
                 if self.pending_calls:
                     for key in list(self.pending_calls.keys()):
-                        for buffered_event in self.result_buffers.get(key, []):
-                            call = self.pending_calls.get(key)
-                            outcome = self._fmt_result(call, buffered_event)
-                            is_error = buffered_event.get("payload", {}).get("error", False)
-                            symbol = f"{C.RED}✗{C.R}" if is_error else f"{C.GREEN}●{C.R}"
-                            print(f"\r\033[K{symbol} {outcome}\n", end="", flush=True)
-                        del self.pending_calls[key]
-                        del self.result_buffers[key]
+                        self.call_start_times.pop(key, None)
+                    self.pending_calls.clear()
                 self._newline()
                 print()
                 await self._finalize()
@@ -248,15 +256,15 @@ class Renderer:
         try:
             while True:
                 elapsed = int(time.time() - start)
-                name = self._tool_name(call.name)
-                print(f"\r{C.CYAN}{frames[i]} {name} ({elapsed}s){C.R}", end="", flush=True)
+                label = self._fmt_call(call).replace(": ...", "")
+                print(f"\r{C.CYAN}{frames[i]} {label} ({elapsed}s){C.R}", end="", flush=True)
                 i = (i + 1) % len(frames)
                 await asyncio.sleep(0.4)
         except asyncio.CancelledError:
             pass
 
-    def _newline(self):
-        if self.state in ("think", "respond"):
+    def _newline(self, force: bool = False):
+        if force or self.state in ("think", "respond"):
             print()
         self.state = None
 
@@ -265,7 +273,7 @@ class Renderer:
         arg = self._tool_arg(call.args)
         return f"{name}({arg}): ..." if arg else f"{name}(): ..."
 
-    def _fmt_result(self, call, event) -> str:
+    def _fmt_result(self, call, event, duration: float | None = None) -> str:
         name = self._tool_name(call.name)
         arg = self._tool_arg(call.args)
         outcome = self._tool_outcome(event.get("payload", {}))
@@ -289,11 +297,44 @@ class Renderer:
             return s if len(s) < 50 else s[:47] + "..."
         return ""
 
+    def _fmt_duration(self, seconds: float) -> str:
+        if seconds < 0:
+            seconds = 0
+        if seconds < 0.1:
+            return "0.1s"
+        if seconds < 1:
+            return f"{seconds:.1f}s"
+        if seconds < 10:
+            return f"{seconds:.1f}s"
+        if seconds < 60:
+            return f"{seconds:.0f}s"
+        minutes = int(seconds // 60)
+        rem = seconds % 60
+        if minutes < 10:
+            return f"{minutes}m {rem:.0f}s"
+        return f"{minutes}m"
+
     def _tool_outcome(self, payload: dict) -> str:
         if payload.get("error"):
             return payload.get("outcome", "error")
 
         outcome = payload.get("outcome", "")
+
+        if not outcome:
+            return "ok"
+
+        read_match = re.match(r"(Read|Wrote|Appended) (.+) \((\d+) lines?\)", outcome)
+        if read_match:
+            lines = read_match.group(3)
+            return f"+{lines} lines"
+
+        modify_match = re.match(r"(Modified|Updated) (.+) \(([-+0-9/]+)\)", outcome)
+        if modify_match:
+            return modify_match.group(3)
+
+        replace_match = re.match(r"(code\.replace|replace) (.+) \(([-+0-9/]+)\)", outcome)
+        if replace_match:
+            return replace_match.group(3)
 
         if outcome.startswith("LOC "):
             parts = outcome[4:].split()
@@ -309,7 +350,7 @@ class Renderer:
             if " results" in outcome:
                 return f"{outcome.split()[1]} results"
 
-        return outcome or "ok"
+        return outcome
 
     def _call_key(self, call):
         # Return a hashable key for the call to distinguish concurrent calls

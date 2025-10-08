@@ -49,10 +49,7 @@ async def test_tool_call_and_result(capsys, mock_config):
     events = [
         {"type": "call", "content": '{"name": "file_read", "args": {"path": "test.py"}}'},
         {"type": "execute"},
-        {
-            "type": "result",
-            "payload": {"outcome": "Read 25 lines", "content": "print('hello')"},
-        },
+        {"type": "result", "payload": {"outcome": "Read test.py (25 lines)"}},
         {"type": "end"},
     ]
     stream = generate_events(events)
@@ -62,8 +59,8 @@ async def test_tool_call_and_result(capsys, mock_config):
 
     captured = capsys.readouterr()
     expected_output = (
-        f"\n{C.CYAN}○{C.R} file_read(test.py): ..."
-        f"\r\033[K{C.GREEN}●{C.R} file_read(test.py): Read 25 lines\n"
+        f"\n{C.GRAY}○{C.R} {C.GRAY}file_read(test.py): ...{C.R}"
+        f"\r\033[K{C.GREEN}●{C.R} file_read(test.py): +25 lines\n"
         "\n\n"
     )
     # We strip because the final newline handling can be tricky
@@ -90,7 +87,7 @@ async def test_tool_call_with_error(capsys, mock_config):
 
     captured = capsys.readouterr()
     expected_output = (
-        f"\n{C.CYAN}○{C.R} file_read(nonexistent.py): ..."
+        f"\n{C.GRAY}○{C.R} {C.GRAY}file_read(nonexistent.py): ...{C.R}"
         f"\r\033[K{C.RED}✗{C.R} file_read(nonexistent.py): File not found\n"
         "\n\n"
     )
