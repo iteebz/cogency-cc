@@ -2,17 +2,16 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from typer.main import get_command
 from typer.testing import CliRunner
 
-from cc.__main__ import main as cli
+from cc.cli import app as cli
 
 
 @patch("cc.commands.show_profile", new_callable=AsyncMock)
 def test_profile_command_shows_profile(mock_show_profile):
     """Test that the 'profile' command calls the correct handler."""
     runner = CliRunner()
-    result = runner.invoke(get_command(cli), ["profile"])
+    result = runner.invoke(cli, ["profile"])
     assert result.exit_code == 0
     mock_show_profile.assert_called_once()
 
@@ -28,7 +27,7 @@ def test_nuke_command_deletes_cogency_dir(mock_find_root, mock_rmtree):
 
     runner = CliRunner()
     # Simulate user confirming the action
-    result = runner.invoke(get_command(cli), ["nuke"], input="y\n")
+    result = runner.invoke(cli, ["nuke"], input="y\n")
 
     assert result.exit_code == 0
     mock_rmtree.assert_called_once()
@@ -38,6 +37,6 @@ def test_nuke_command_deletes_cogency_dir(mock_find_root, mock_rmtree):
 def test_context_command_calls_show_context(mock_show_context):
     """Test that the 'context' command calls the correct handler."""
     runner = CliRunner()
-    result = runner.invoke(get_command(cli), ["context"])
+    result = runner.invoke(cli, ["context"])
     assert result.exit_code == 0
     mock_show_context.assert_called_once()

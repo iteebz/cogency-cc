@@ -1,19 +1,19 @@
-"Entry point for cogency-cc CLI application."
-
 import asyncio
 import sys
 import uuid
+from typing import Annotated
 
-import click
+import typer
 
 from .agent import create_agent
 from .alias import MODEL_ALIASES
-from .commands import context, nuke, profile
+from .commands import context_command, nuke_command, profile_command
 from .conversations import get_last_conversation
 from .lib.fs import root
 from .renderer import Renderer
-from .session import session_cli
+from .session import session_app
 from .state import Config
+from .storage import Snapshots
 
 
 async def run_agent(
@@ -48,7 +48,7 @@ async def run_agent(
     try:
         await asyncio.wait_for(renderer.render_stream(stream), timeout=60.0)
     except asyncio.TimeoutError:
-        click.echo("\nAgent execution timed out after 60 seconds.")
+        typer.echo("\nAgent execution timed out after 60 seconds.")
         return
     finally:
         if stream and hasattr(stream, "aclose"):
@@ -59,13 +59,25 @@ async def run_agent(
                 await llm.close()
 
 
-@click.group(invoke_without_command=True)
-@click.option("--debug", is_flag=True, help="Enable debug logging.")
-@click.pass_context
-def main(ctx: click.Context, debug: bool) -> None:
-    """Cogency Code CLI for interacting with AI agents."""
-    ctx.ensure_object(dict)
+app = typer.Typer(
+    help="Cogency Code CLI for interacting with AI agents.",
+    invoke_without_command=True,
+    pretty_exceptions_enable=False,
+)
 
+
+@app.callback()
+def main(
+    ctx: typer.Context,
+    debug: Annotated[
+        bool,
+        typer.Option(
+            "--debug",
+            "-d",
+            help="Enable debug logging.",
+        ),
+    ] = False,
+) -> None:
     if debug:
         from cogency.lib.logger import set_debug
 
@@ -73,38 +85,52 @@ def main(ctx: click.Context, debug: bool) -> None:
 
     config = Config(user_id="cogency")
     config.load()
-    ctx.obj["config"] = config
-
-    from .storage import Snapshots
-
-    ctx.obj["snapshots"] = Snapshots()
-
-    if ctx.invoked_subcommand is None:
-        click.echo(ctx.get_help())
-        ctx.exit(0)
+    ctx.obj = {"config": config, "snapshots": Snapshots()}
 
 
-@main.command("run")
-@click.option("--new", is_flag=True, help="Start a new conversation, ignoring history.")
-@click.option("--evo", is_flag=True, help="Enable evolutionary mode (experimental).")
-@click.option("--conv", "conversation_id_arg", help="Specify a conversation ID to resume or start.")
-@click.option(
-    "--model-alias",
-    type=click.Choice(list(MODEL_ALIASES.keys())),
-    help="Use a predefined model alias.",
-)
-@click.argument("query_parts", nargs=-1)
-@click.pass_context
+@app.command("run")
 def run_cmd(
-    ctx: click.Context,
-    new: bool,
-    evo: bool,
-    conversation_id_arg: str | None,
-    model_alias: str | None,
-    query_parts: tuple[str, ...],
+    ctx: typer.Context,
+    query_parts: Annotated[
+        list[str],
+        typer.Argument(help="The query to run with the agent."),
+    ],
+    new: Annotated[
+        bool,
+        typer.Option(
+            "--new",
+            "-n",
+            help="Start a new conversation, ignoring history.",
+        ),
+    ] = False,
+    evo: Annotated[
+        bool,
+        typer.Option(
+            "--evo",
+            "-e",
+            help="Enable evolutionary mode (experimental).",
+        ),
+    ] = False,
+    conversation_id_arg: Annotated[
+        str | None,
+        typer.Option(
+            "--conv",
+            "-c",
+            help="Specify a conversation ID to resume or start.",
+        ),
+    ] = None,
+    model_alias: Annotated[
+        str | None,
+        typer.Option(
+            "--model-alias",
+            "-m",
+            help="Use a predefined model alias.",
+            rich_help_panel="Model Configuration",
+        ),
+    ] = None,
 ):
     """Run a query with the agent."""
-    config = ctx.obj["config"]
+    config: Config = ctx.obj["config"]
 
     if model_alias:
         values = MODEL_ALIASES[model_alias]
@@ -114,7 +140,7 @@ def run_cmd(
 
     query = " ".join(query_parts)
     if not query:
-        click.echo(ctx.parent.get_help())
+        typer.echo(ctx.parent.get_help())
         sys.exit(0)
 
     # Resolve conversation ID
@@ -134,15 +160,14 @@ def run_cmd(
         current_conv_id = str(uuid.uuid4())
 
     agent = create_agent(config, "")
-    click.echo(f"Using model: {config.model or config.provider}")
+    typer.echo(f"Using model: {config.model or config.provider}")
     asyncio.run(run_agent(agent, query, current_conv_id, resuming, evo, config))
 
 
-# Add other commands
-main.add_command(nuke)
-main.add_command(profile)
-main.add_command(context)
-main.add_command(session_cli)
+app.add_typer(session_app, name="session")
+app.command("nuke")(nuke_command)
+app.command("profile")(profile_command)
+app.command("context")(context_command)
 
 if __name__ == "__main__":
-    main()
+    app()
