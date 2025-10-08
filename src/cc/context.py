@@ -6,13 +6,13 @@ import sys
 from cogency.lib.storage import SQLite
 
 from .conversations import get_last_conversation
-from .instructions import find_project_root
 from .lib.color import C
+from .lib.fs import root
 
 
 async def show_context():
-    root = find_project_root()
-    if not root:
+    project_root = root()
+    if not project_root:
         print("No project root found")
         return
 

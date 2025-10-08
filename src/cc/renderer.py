@@ -26,6 +26,8 @@ class Renderer:
         summaries: list | None = None,
         config=None,
         evo_mode: bool = False,
+        enable_rolling_summary: bool = True,
+        rolling_summary_threshold: int = 10,
     ):
         self.verbose = verbose
         self.messages = messages or []
@@ -34,6 +36,8 @@ class Renderer:
         self.conv_id = conv_id
         self.config = config
         self.evo_mode = evo_mode
+        self.enable_rolling_summary = enable_rolling_summary
+        self.rolling_summary_threshold = rolling_summary_threshold
 
         self.state = None
         self.header_shown = False
@@ -48,7 +52,6 @@ class Renderer:
 
     async def render_stream(self, stream):
         self.turn_start = time.time()
-        self.processed_content = set()  # Track processed content to prevent duplicates
 
         try:
             async for event in stream:
@@ -58,27 +61,19 @@ class Renderer:
                     self._render_header()
                     self.header_shown = True
 
-                # Skip duplicate content events
-                if event.get("type") == "respond" and event.get("content"):
-                    content_str = event["content"]
-                    content_key = f"{event.get('timestamp')}_{content_str}"
-                    if content_key in self.processed_content:
-                        continue
-                    self.processed_content.add(content_key)
-
                 await self._render_event(event)
         except Exception as e:
             from cogency.lib.logger import logger
 
             logger.error(f"Stream error: {e}")
-            print(f"\n{C.red}✗ Stream error: {e}{C.R}")
+            print(f"\n{C.RED}✗ Stream error: {e}{C.R}")
             raise
 
     def _render_header(self):
         if self.summaries:
-            print(f"{C.gray}context:{C.R}")
+            print(f"{C.GRAY}context:{C.R}")
             for s in self.summaries:
-                print(f"{C.gray}  {s['summary']}{C.R}")
+                print(f"{C.GRAY}  {s['summary']}{C.R}")
             print()
 
         parts = []
@@ -102,13 +97,13 @@ class Renderer:
                 parts.append(f"{metrics['input']}→{metrics['output']} tok ({pct}%)")
 
         if parts:
-            print(f"{C.gray}» {' | '.join(parts)}{C.R}")
+            print(f"{C.GRAY}» {' | '.join(parts)}{C.R}")
 
     async def _render_event(self, e):
         match e["type"]:
             case "user":
                 if e["content"]:
-                    print(f"{C.gray}---{C.R}\n{C.cyan}${C.R} {e['content']}")
+                    print(f"{C.GRAY}---{C.R}\n{C.CYAN}${C.R} {e['content']}")
                     self.state = "user"
                     self.thinking_task = asyncio.create_task(self._think_spin())
 
@@ -118,7 +113,7 @@ class Renderer:
                     self.thinking_task = None
                     print("\r\033[K", end="", flush=True)
                 if e.get("content"):
-                    print(f"{C.gray}intent: {e['content']}{C.R}")
+                    print(f"{C.GRAY}intent: {e['content']}{C.R}")
 
             case "think":
                 if self.thinking_task:
@@ -128,7 +123,7 @@ class Renderer:
                 if e["content"] and e["content"].strip():
                     if self.state != "think":
                         self._newline()
-                        print(f"{C.gray}~{C.R} ", end="", flush=True)
+                        print(f"{C.GRAY}~{C.R} ", end="", flush=True)
                         self.state = "think"
                         self.first_chunk = True
                     content = e["content"].lstrip() if self.first_chunk else e["content"]
@@ -143,7 +138,7 @@ class Renderer:
                 if e["content"] and e["content"].strip():
                     if self.state != "respond":
                         self._newline()
-                        print(f"{C.magenta}>{C.R} ", end="", flush=True)
+                        print(f"{C.MAGENTA}>{C.R} ", end="", flush=True)
                         self.state = "respond"
                         self.first_chunk = True
                     content = e["content"].lstrip() if self.first_chunk else e["content"]
@@ -167,7 +162,7 @@ class Renderer:
                     key = self._call_key(call)
                     self.pending_calls[key] = call
                     self.result_buffers[key] = []
-                    print(f"{C.cyan}○{C.R} {self._fmt_call(call)}", end="", flush=True)
+                    print(f"{C.CYAN}○{C.R} {self._fmt_call(call)}", end="", flush=True)
                 except Exception:
                     # Remove last call on exception
                     if self.pending_calls:
@@ -196,16 +191,14 @@ class Renderer:
                     call = self.pending_calls[call_key]
 
                     # Buffer the result for later processing
-                    if not hasattr(self, "result_buffers"):
-                        self.result_buffers = {}
                     if call_key not in self.result_buffers:
                         self.result_buffers[call_key] = []
                     self.result_buffers[call_key].append(e)
                 else:
                     # No pending calls, display result directly
                     outcome = self._fmt_result(None, e)
-                    is_error = e.get("payload", {}).get("error", False)
-                    symbol = f"{C.red}✗{C.R}" if is_error else f"{C.green}●{C.R}"
+                    is_error = e.get("payload", {}).get("error")
+                    symbol = f"{C.RED}✗{C.R}" if is_error else f"{C.GREEN}●{C.R}"
                     print(f"\r\033[K{symbol} {outcome}\n", end="", flush=True)
                     self.state = None
 
@@ -217,7 +210,7 @@ class Renderer:
                             call = self.pending_calls.get(key)
                             outcome = self._fmt_result(call, buffered_event)
                             is_error = buffered_event.get("payload", {}).get("error", False)
-                            symbol = f"{C.red}✗{C.R}" if is_error else f"{C.green}●{C.R}"
+                            symbol = f"{C.RED}✗{C.R}" if is_error else f"{C.GREEN}●{C.R}"
                             print(f"\r\033[K{symbol} {outcome}\n", end="", flush=True)
                         del self.pending_calls[key]
                         del self.result_buffers[key]
@@ -228,10 +221,10 @@ class Renderer:
 
             case "error":
                 msg = e.get("payload", {}).get("error") or e.get("content", "Unknown error")
-                print(f"{C.red}✗{C.R} {msg}")
+                print(f"{C.RED}✗{C.R} {msg}")
 
             case "interrupt":
-                print(f"{C.yellow}⚠{C.R} Interrupted")
+                print(f"{C.YELLOW}⚠{C.R} Interrupted")
 
     async def _think_spin(self):
         if os.getenv("CI") == "true":
@@ -243,7 +236,7 @@ class Renderer:
         try:
             while True:
                 elapsed = int(time.time() - start)
-                print(f"\r{C.gray}{frames[i]} thinking ({elapsed}s){C.R}", end="", flush=True)
+                print(f"\r{C.GRAY}{frames[i]} thinking ({elapsed}s){C.R}", end="", flush=True)
                 i = (i + 1) % len(frames)
                 await asyncio.sleep(0.08)
         except asyncio.CancelledError:
@@ -260,7 +253,7 @@ class Renderer:
             while True:
                 elapsed = int(time.time() - start)
                 name = self._tool_name(call.name)
-                print(f"\r{C.cyan}{frames[i]} {name} ({elapsed}s){C.R}", end="", flush=True)
+                print(f"\r{C.CYAN}{frames[i]} {name} ({elapsed}s){C.R}", end="", flush=True)
                 i = (i + 1) % len(frames)
                 await asyncio.sleep(0.4)
         except asyncio.CancelledError:
@@ -284,9 +277,7 @@ class Renderer:
         return f"{base}: {outcome}"
 
     def _tool_name(self, name: str) -> str:
-        import re
-
-        return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+        return name
 
     def _tool_arg(self, args: dict) -> str:
         if not isinstance(args, dict):
@@ -330,7 +321,7 @@ class Renderer:
 
     async def _rolling_summary(self):
         """Generate rolling summary after each message completion."""
-        if not self.conv_id or not self.config or not self.config.enable_rolling_summary:
+        if not self.conv_id or not self.llm or not self.enable_rolling_summary:
             return
 
         try:
@@ -356,7 +347,7 @@ class Renderer:
             recent_msgs = [m for m in msgs if m.get("timestamp", 0) > cutoff_ts]
 
             # Only summarize if we have enough new messages
-            if len(recent_msgs) < self.config.rolling_summary_threshold:
+            if len(recent_msgs) < self.rolling_summary_threshold:
                 return
 
             # Generate summary
@@ -429,31 +420,24 @@ Focus on key actions, decisions, and outcomes. Be factual and brief."""
         if not (self.conv_id and self.llm and self.config):
             return
 
-        asyncio.create_task(self._evo_compact())
+        await self._evo_compact()
 
     async def _evo_compact(self):
-        try:
-            import uuid
+        import uuid
 
-            from cogency.lib.logger import logger
-            from cogency.lib.storage import SQLite
+        from cogency.lib.compaction import maybe_cull
+        from cogency.lib.logger import logger
+        from cogency.lib.storage import SQLite, SummaryStorage
 
-            from .compact import maybe_cull
-            from .storage import SummaryStorage
+        msg_storage = SQLite()
+        sum_storage = SummaryStorage()
+        threshold = 10  # Or some other appropriate value
 
-            msg_storage = SQLite()
-            sum_storage = SummaryStorage()
-            threshold = self.config.compact_threshold
+        culled = await maybe_cull(
+            self.conv_id, "cogency", msg_storage, sum_storage, self.llm, threshold
+        )
 
-            culled = await maybe_cull(
-                self.conv_id, "cogency", msg_storage, sum_storage, self.llm, threshold
-            )
-
-            if culled:
-                new_id = str(uuid.uuid4())
-                self.config.update(conversation_id=new_id)
-                logger.debug(f"🔄 EVO: compacted → new conv {new_id[:8]}")
-        except Exception as e:
-            from cogency.lib.logger import logger
-
-            logger.debug(f"Evo compact failed: {e}")
+        if culled:
+            new_id = str(uuid.uuid4())
+            self.config.update(conversation_id=new_id)
+            logger.debug(f"🔄 EVO: compacted → new conv {new_id[:8]}")

@@ -26,14 +26,15 @@ packages = [
 ]
 
 [tool.poetry.scripts]
-cc = "cc.__main__:main"
-cogency = "cc.__main__:main"
+cc = "cc.cli:main"
+cogency = "cc.cli:main"
 cc-setup = "cc.setup:setup_shell"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<4.0"
 aiohttp = "^3.9.0"
 cogency = {path = "../cogency"}
+typer = "^0.17.4"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.13.0"
@@ -69,7 +70,7 @@ ignore = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests/unit", "tests/integration"]
+testpaths = ["tests/unit", "tests/integration", "tests/unit/storage"]
 python_files = ["test_*.py", "*_test.py"]
 pythonpath = ["src"]
 filterwarnings = [

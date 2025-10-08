@@ -3,6 +3,7 @@
 import dataclasses
 import json
 import os
+import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -71,12 +72,16 @@ class Config:
                     for key, value in data.items():
                         if hasattr(self, key):
                             setattr(self, key, value)
-            except Exception:
-                pass  # Start with defaults if config is broken
+            except (OSError, json.JSONDecodeError) as e:
+                print(
+                    f"Warning: Could not load config from {self.config_file}. Error: {e}. Using default settings.",
+                    file=sys.stderr,
+                )
 
     def save(self) -> None:
         """Save configuration to file."""
-        self.config_dir.mkdir(exist_ok=True, mode=0o700)
+        if not self.config_dir.exists():
+            self.config_dir.mkdir(mode=0o700)
 
         data = {
             "provider": self.provider,
@@ -125,32 +130,3 @@ class Config:
         valid_keys = {f.name for f in dataclasses.fields(cls) if f.init}
         filtered_data = {k: v for k, v in data.items() if k in valid_keys}
         return cls(**filtered_data)
-
-
-def list_conversations() -> list[dict]:
-    """List all conversations with metadata."""
-    from cogency.lib.storage import DB
-
-    with DB.connect() as db:
-        rows = db.execute("""
-            SELECT
-                conversation_id,
-                user_id,
-                MIN(timestamp) as first_message,
-                MAX(timestamp) as last_message,
-                COUNT(*) as message_count
-            FROM messages
-            GROUP BY conversation_id, user_id
-            ORDER BY last_message DESC
-        """).fetchall()
-
-        return [
-            {
-                "id": row[0],
-                "user_id": row[1],
-                "first": row[2],
-                "last": row[3],
-                "count": row[4],
-            }
-            for row in rows
-        ]

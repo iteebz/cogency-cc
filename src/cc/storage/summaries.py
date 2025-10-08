@@ -3,37 +3,23 @@
 import asyncio
 import sqlite3
 import time
-from pathlib import Path
 
 from cogency.lib.ids import uuid7
-from cogency.lib.storage import DB
+
+from .db import DB
 
 
-class SummaryStorage:
+class Summaries:
     """Manages conversation summaries and message culling."""
 
-    def __init__(self, db_path: str = None):
-        """Initialize summary storage with secure path resolution.
+    def __init__(self, db_path: str):
+        """Initialize summary storage.
 
         Args:
-            db_path: Path to database file. If None, uses default .cogency/store.db
+            db_path: Path to database file.
         """
-        if db_path is None:
-            # Use secure absolute path resolution
-            cwd = Path.cwd()
-            self.db_path = str(cwd / ".cogency" / "store.db")
-        else:
-            # Convert to absolute path and validate
-            path = Path(db_path).resolve()
-            # Basic security check - ensure we're not escaping to unexpected locations
-            if not str(path).startswith(str(Path.cwd().resolve())):
-                raise ValueError(f"Database path must be within current directory: {path}")
-            self.db_path = str(path)
+        self.db_path = db_path
 
-        self._init_schema()
-
-    def _init_schema(self):
-        """Initialize summaries table."""
         with DB.connect(self.db_path) as db:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS summaries (
@@ -99,22 +85,3 @@ class SummaryStorage:
                 ]
 
         return await asyncio.get_event_loop().run_in_executor(None, _sync_load)
-
-    async def cull_messages(
-        self, conversation_id: str, before_timestamp: float, keep_system: bool = True
-    ) -> int:
-        def _sync_cull():
-            with DB.connect(self.db_path) as db:
-                if keep_system:
-                    cursor = db.execute(
-                        "DELETE FROM messages WHERE conversation_id = ? AND timestamp < ? AND type != 'system'",
-                        (conversation_id, before_timestamp),
-                    )
-                else:
-                    cursor = db.execute(
-                        "DELETE FROM messages WHERE conversation_id = ? AND timestamp < ?",
-                        (conversation_id, before_timestamp),
-                    )
-                return cursor.rowcount
-
-        return await asyncio.get_event_loop().run_in_executor(None, _sync_cull)

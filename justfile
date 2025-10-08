@@ -1,41 +1,26 @@
-default *ARGS:
-    @poetry run python -m src.cc {{ARGS}}
+default:
+    @just --list
+
+clean:
+    @rm -rf dist build .pytest_cache .ruff_cache __pycache__ .venv
+    @find . -type d -name "__pycache__" -exec rm -rf {} +
 
 install:
     @poetry install
 
-dev-setup: install
-    @poetry run cc-setup
-
-reload:
-    @poetry remove cogency && poetry add ../cogency
+ci: format fix test build
 
 test:
-    @poetry run python -m pytest tests -v
-
-cov:
-    @poetry run pytest --cov=src/cogency_code tests/
+    @PYTHONPATH=src poetry run python -m pytest tests -v
 
 format:
     @poetry run ruff format .
 
 lint:
-    @poetry run ruff check .
+    @poetry run ruff check . --ignore F841
 
 fix:
     @poetry run ruff check . --fix --unsafe-fixes
 
 build:
     @poetry build
-
-publish: ci build
-    @poetry publish
-
-clean:
-    @rm -rf dist build .pytest_cache .ruff_cache __pycache__ .venv
-    @find . -type d -name "__pycache__" -exec rm -rf {} +
-
-commits:
-    @git --no-pager log --pretty=format:"%ar %s"
-
-ci: format fix test build

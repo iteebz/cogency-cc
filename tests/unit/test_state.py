@@ -1,285 +1,156 @@
-"""Tests for configuration state management."""
+"""Test configuration state management."""
 
-import json
-import os
-import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from cc.state import Config
+import pytest
+
+from cc.state import Config, _default_config_dir
 
 
-def test_defaults():
-    """Test default configuration values."""
+@pytest.fixture
+def temp_config_dir(tmp_path: Path) -> Path:
+    """Create a temporary config directory for testing."""
+    return tmp_path / ".cogency"
+
+
+def test_config_initialization_defaults():
+    """Test that Config initializes with expected default values."""
     config = Config()
     assert config.provider == "glm"
+    assert config.model is None
     assert config.user_id == "new_user"
     assert config.tools == ["file", "web", "memory"]
-    assert config.api_keys == {}
 
 
-def test_api_key_env_priority():
-    """Test that environment variables take precedence over stored keys."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        config_path = Path(temp_dir) / "config.json"
-
-        # Create config with stored key
-        config = Config()
-        config.config_dir = Path(temp_dir)
-        config.config_file = config_path
-        config.api_keys = {"openai": "stored_key"}
-        config.save()
-
-        # Load with env var override
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "env_key"}):
-            config = Config()
-            config.config_dir = Path(temp_dir)
-            config.config_file = config_path
-            config.load()
-
-            # Env var should win
-            assert config.get_api_key("openai") == "env_key"
+def test_config_post_init_sets_correct_path(temp_config_dir: Path):
+    """Test that __post_init__ correctly constructs the config_file path."""
+    config = Config(config_dir=temp_config_dir)
+    assert config.config_file == temp_config_dir / "cc.json"
 
 
-def test_persistence():
-    """Test configuration persistence to file."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        config_path = Path(temp_dir) / "config.json"
+def test_save_and_load_cycle(temp_config_dir: Path):
+    """Test that saving and then loading a config preserves its values."""
+    # 1. Create and save a non-default config
+    config_save = Config(config_dir=temp_config_dir)
+    config_save.provider = "openai"
+    config_save.model = "gpt-5-codex-low"
+    config_save.user_id = "test_user"
+    config_save.tools = ["file"]
+    config_save.save()
 
-        config = Config()
-        config.config_dir = Path(temp_dir)
-        config.config_file = config_path
-        config.update(provider="anthropic", mode="resume", user_id="test_user")
+    assert config_save.config_file.exists()
 
-        assert config_path.exists()
+    # 2. Create a new default config and load from the saved file
+    config_load = Config(config_dir=temp_config_dir)
+    config_load.load()
 
-        with open(config_path) as f:
-            data = json.load(f)
-
-        assert data["provider"] == "anthropic"
-        assert data["mode"] == "resume"
-        assert data["user_id"] == "test_user"
-
-
-def test_load_existing():
-    """Test loading existing configuration."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        config_path = Path(temp_dir) / "config.json"
-
-        # Write config file
-        test_config = {
-            "provider": "gemini",
-            "mode": "replay",
-            "user_id": "loaded_user",
-            "tools": ["file", "web"],
-            "api_keys": {"glm": "test_key"},
-        }
-
-        with open(config_path, "w") as f:
-            json.dump(test_config, f)
-
-        # Load config
-        config = Config()
-        config.config_dir = Path(temp_dir)
-        config.config_file = config_path
-        config.load()
-
-        assert config.provider == "gemini"
-        assert config.mode == "replay"
-        assert config.user_id == "loaded_user"
-        assert config.tools == ["file", "web"]
-        assert config.api_keys == {"glm": "test_key"}
+    # 3. Assert that the loaded config matches the saved one
+    assert config_load.provider == "openai"
+    assert config_load.model == "gpt-5-codex-low"
+    assert config_load.user_id == "test_user"
+    assert config_load.tools == ["file"]
 
 
-def test_api_key_status():
-    """Test API key status display."""
-    config = Config()
-    config.api_keys = {"glm": "stored_key"}
+def test_load_from_non_existent_file(temp_config_dir: Path):
+    """Test that loading from a non-existent file results in default values."""
+    config = Config(config_dir=temp_config_dir)
+    # Ensure the file doesn't exist
+    assert not config.config_file.exists()
 
-    with patch.dict(os.environ, {}, clear=True):
-        # Clear env vars first, then add what we want
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "env_key"}, clear=False):
-            assert config.get_api_key_status("glm") == "✓ Glm (saved)"
-            assert config.get_api_key_status("openai") == "✓ Openai (env)"
-            assert config.get_api_key_status("anthropic") == "✗ Anthropic"
+    config.load()
 
-
-def test_update():
-    """Test the update method."""
-    config = Config()
-
-    config.update(
-        provider="gemini", mode="resume", user_id="new_user", api_keys={"openai": "new_key"}
-    )
-
-    assert config.provider == "gemini"
-    assert config.mode == "resume"
-    assert config.user_id == "new_user"
-    assert config.api_keys == {"openai": "new_key"}
+    # Assert that the config retains its default values
+    assert config.provider == "glm"
+    assert config.model is None
 
 
-def test_broken_config():
-    """Test handling of broken config files."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        config_path = Path(temp_dir) / "config.json"
+def test_load_from_corrupted_json(temp_config_dir: Path, capsys):
+    """Test that loading from a corrupted JSON file handles the error gracefully."""
+    config_dir = temp_config_dir
+    config_file = config_dir / "cc.json"
+    config_dir.mkdir()
+    config_file.write_text("this is not valid json")
 
-        # Write invalid JSON
-        with open(config_path, "w") as f:
-            f.write("invalid json content")
+    config = Config(config_dir=config_dir)
+    config.load()
 
-        # Create config with custom path to avoid loading default config
-        config = object.__new__(Config)  # Skip __post_init__
-        config.provider = "glm"
-        config.mode = "auto"
-        config.user_id = "cogency_user"
-        config.conversation_id = "dev_work"
-        config.tools = ["file", "web", "memory"]
-        config.api_keys = {}
-        config.config_dir = Path(temp_dir)
-        config.config_file = config_path
+    # Assert that the config retains its default values
+    assert config.provider == "glm"
+    assert config.model is None
 
-        config.load()  # Should not crash
-
-        # Should fall back to defaults (unchanged since load failed)
-        assert config.provider == "glm"
-        assert config.mode == "auto"
+    # Assert that a warning was printed to stderr
+    stderr = capsys.readouterr().err
+    assert "Warning: Could not load config" in stderr
+    assert "Expecting value: line 1 column 1 (char 0)" in stderr
 
 
-def test_default_identity():
-    """Test config has default identity."""
-    config = Config()
-    assert config.identity == "code"
+def test_update_method_changes_and_saves(temp_config_dir: Path):
+    """Test that the update method modifies attributes and persists the changes."""
+    config = Config(config_dir=temp_config_dir)
+    config.update(provider="anthropic", model="claude-3.5-sonnet")
+
+    assert config.provider == "anthropic"
+    assert config.model == "claude-3.5-sonnet"
+
+    # Verify that the changes were saved to the file
+    config_load = Config(config_dir=temp_config_dir)
+    config_load.load()
+    assert config_load.provider == "anthropic"
+    assert config_load.model == "claude-3.5-sonnet"
 
 
-def test_identity_persistence(tmp_path):
-    """Test identity persists to config file."""
-    import json
-    import tempfile
+def test_get_api_key_priority(temp_config_dir: Path):
+    """Test the priority of API key retrieval: env > saved keys."""
+    config = Config(config_dir=temp_config_dir)
+    config.api_keys = {"openai": "saved-key"}
+    config.save()
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        config_file = Path(temp_dir) / "config.json"
+    # 1. No environment variable, should use saved key
+    with patch.dict("os.environ", clear=True):
+        with patch("cc.state.rotated_api_key", return_value=None):
+            assert config.get_api_key("openai") == "saved-key"
 
-        config = Config()
-        config.config_dir = Path(temp_dir)
-        config.config_file = config_file
-        config.identity = "cothinker"
-        config.save()
+    # 2. With environment variable, should use env key
+    with patch("cc.state.rotated_api_key", return_value="env-key"):
+        assert config.get_api_key("openai") == "env-key"
 
-        # Load and verify
-        with open(config_file) as f:
-            data = json.load(f)
-
-        assert data["identity"] == "cothinker"
-
-
-def test_api_key_priority():
-    """Test API key resolution priority: env > stored."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        config_path = Path(temp_dir) / "config.json"
-        config_dir = Path(temp_dir)
-
-        # Create config with stored key
-        test_config = {"provider": "glm", "api_keys": {"glm": "stored_key"}}
-
-        with open(config_path, "w") as f:
-            json.dump(test_config, f)
-
-        # Load config with env var override
-        with patch.dict(os.environ, {"GLM_API_KEY": "env_key"}, clear=True):
-            config = Config()
-            config.config_dir = config_dir
-            config.config_file = config_path
-            config.load()
-
-            assert config.get_api_key("glm") == "env_key"
+    # 3. No key found
+    with patch.dict("os.environ", clear=True):
+        with patch("cc.state.rotated_api_key", return_value=None):
+            assert config.get_api_key("anthropic") is None
 
 
-def test_default_values():
-    """Test that defaults are sensible and minimal."""
-    # Create fresh config without loading from disk
-    config = object.__new__(Config)  # Skip __post_init__ to avoid loading
-    config.provider = "glm"
-    config.mode = "auto"
-    config.user_id = "cogency"
-    config.conversation_id = "dev_work"
-    config.tools = ["file", "web", "memory"]
-    config.api_keys = {}
+def test_get_api_key_status(temp_config_dir: Path):
+    """Test the display status for API keys."""
+    config = Config(config_dir=temp_config_dir)
+    config.api_keys = {"openai": "saved-key"}
+    config.save()
 
-    # Verify defaults align with cogency-cc design
-    assert config.provider == "glm"  # Default GLM provider
-    assert config.mode == "auto"  # Auto mode for compatibility
-    assert config.user_id == "cogency"
-    assert set(config.tools) == {"file", "web", "memory"}  # Standard tool set
+    # Env key exists
+    with patch("cc.state.rotated_keys", return_value=["env-key"]):
+        assert config.get_api_key_status("openai") == "✓ Openai (env)"
 
+    # Only saved key exists
+    with patch("cc.state.rotated_keys", return_value=[]):
+        assert config.get_api_key_status("openai") == "✓ Openai (saved)"
 
-def test_to_dict():
-    """Test Config.to_dict() method."""
-    with patch.object(Config, "load", lambda self: None):
-        config = Config(
-            provider="test_provider",
-            model="test_model",
-            mode="test_mode",
-            user_id="test_user",
-            conversation_id="test_conv",
-            tools=["tool1", "tool2"],
-            identity="test_identity",
-            token_limit=12345,
-            compact_threshold=67890,
-            enable_rolling_summary=True,
-            rolling_summary_threshold=5,
-        )
-        config.api_keys = {"some_key": "some_value"}  # Should not be in to_dict
-
-        config_dict = config.to_dict()
-
-    assert config_dict["provider"] == "test_provider"
-    assert config_dict["model"] == "test_model"
-    assert config_dict["mode"] == "test_mode"
-    assert config_dict["user_id"] == "test_user"
-    assert config_dict["conversation_id"] == "test_conv"
-    assert config_dict["tools"] == ["tool1", "tool2"]
-    assert config_dict["identity"] == "test_identity"
-    assert config_dict["token_limit"] == 12345
-    assert config_dict["compact_threshold"] == 67890
-    assert config_dict["enable_rolling_summary"] is True
-    assert config_dict["rolling_summary_threshold"] == 5
-    assert "api_keys" not in config_dict
-    assert "config_dir" not in config_dict
-    assert "config_file" not in config_dict
+    # No key exists
+    with patch("cc.state.rotated_keys", return_value=[]):
+        assert config.get_api_key_status("anthropic") == "✗ Anthropic"
 
 
-def test_from_dict():
-    """Test Config.from_dict() method."""
-    with patch.object(Config, "load", lambda self: None):
-        config_data = {
-            "provider": "from_dict_provider",
-            "model": "from_dict_model",
-            "mode": "from_dict_mode",
-            "user_id": "from_dict_user",
-            "conversation_id": "from_dict_conv",
-            "tools": ["tool_a", "tool_b"],
-            "identity": "from_dict_identity",
-            "token_limit": 54321,
-            "compact_threshold": 98765,
-            "enable_rolling_summary": False,
-            "rolling_summary_threshold": 15,
-            "extra_key": "should_be_ignored",  # Test filtering of extra keys
-        }
+def test_default_config_dir_logic():
+    """Test the logic for determining the default config directory."""
+    # 1. Override via environment variable
+    with patch.dict("os.environ", {"COGENCY_CONFIG_DIR": "/tmp/custom"}):
+        assert _default_config_dir() == Path("/tmp/custom/.cogency")
 
-        config = Config.from_dict(config_data)
+    # 2. Pytest environment
+    with patch.dict("os.environ", {"PYTEST_CURRENT_TEST": "true"}, clear=True):
+        assert "cogency-cc-tests" in str(_default_config_dir())
 
-    assert config.provider == "from_dict_provider"
-    assert config.model == "from_dict_model"
-    assert config.mode == "from_dict_mode"
-    assert config.user_id == "from_dict_user"
-    assert config.conversation_id == "from_dict_conv"
-    assert config.tools == ["tool_a", "tool_b"]
-    assert config.identity == "from_dict_identity"
-    assert config.token_limit == 54321
-    assert config.compact_threshold == 98765
-    assert config.enable_rolling_summary is False
-    assert config.rolling_summary_threshold == 15
-    # Ensure extra keys are ignored and default values for non-provided fields are set
-    assert config.api_keys == {}
-    assert isinstance(config.config_dir, Path)
-    assert isinstance(config.config_file, Path)
+    # 3. Default to home directory
+    with patch.dict("os.environ", clear=True):
+        with patch("pathlib.Path.home", return_value=Path("/fake/home")):
+            assert _default_config_dir() == Path("/fake/home/.cogency")

@@ -2,30 +2,21 @@ import asyncio
 import json
 import sqlite3
 import time
-from pathlib import Path
 from typing import Any
 
 from cogency.lib.ids import uuid7
 from cogency.lib.resilience import retry
 
+from .db import DB
 
-class DB:
-    _initialized_paths = set()
 
-    @classmethod
-    def connect(cls, db_path: str):
-        path = Path(db_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
+class Snapshots:
+    def __init__(self, db_path: str = ".cogency/store.db"):
+        self.db_path = db_path
+        self._init_schema()
 
-        if str(path) not in cls._initialized_paths:
-            cls._init_schema(path)
-            cls._initialized_paths.add(str(path))
-
-        return sqlite3.connect(path)
-
-    @classmethod
-    def _init_schema(cls, db_path: Path):
-        with sqlite3.connect(db_path) as db:
+    def _init_schema(self):
+        with DB.connect(self.db_path) as db:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     session_id TEXT PRIMARY KEY,
@@ -40,11 +31,6 @@ class DB:
                 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
                 CREATE INDEX IF NOT EXISTS idx_sessions_tag ON sessions(tag);
             """)
-
-
-class StorageExt:
-    def __init__(self, db_path: str = ".cogency/store.db"):
-        self.db_path = db_path
 
     async def save_session(
         self, tag: str, conversation_id: str, user_id: str, model_config: dict[str, Any]
@@ -83,6 +69,17 @@ class StorageExt:
         return await asyncio.get_event_loop().run_in_executor(None, _sync_overwrite)
 
     @retry(attempts=3, base_delay=0.1)
+    async def delete_session(self, tag: str, user_id: str) -> int:
+        def _sync_delete():
+            with DB.connect(self.db_path) as db:
+                cursor = db.execute(
+                    "DELETE FROM sessions WHERE tag = ? AND user_id = ?", (tag, user_id)
+                )
+                return cursor.rowcount
+
+        return await asyncio.get_event_loop().run_in_executor(None, _sync_delete)
+
+    @retry(attempts=3, base_delay=0.1)
     async def list_sessions(self, user_id: str) -> list[dict[str, Any]]:
         def _sync_load():
             with DB.connect(self.db_path) as db:
@@ -109,12 +106,17 @@ class StorageExt:
             with DB.connect(self.db_path) as db:
                 db.row_factory = sqlite3.Row
                 row = db.execute(
-                    "SELECT conversation_id, model_config FROM sessions WHERE tag = ? AND user_id = ?",
-                    (tag, user_id),
+                    "SELECT tag, conversation_id, created_at, model_config FROM sessions WHERE tag = ? AND user_id = ?",
+                    (
+                        tag,
+                        user_id,
+                    ),
                 ).fetchone()
                 if row:
                     return {
+                        "tag": row["tag"],
                         "conversation_id": row["conversation_id"],
+                        "created_at": row["created_at"],
                         "model_config": json.loads(row["model_config"]),
                     }
                 return None

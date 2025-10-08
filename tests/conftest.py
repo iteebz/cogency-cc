@@ -101,10 +101,19 @@ def cli_runner(tmp_path, monkeypatch):
     env["COGENCY_CONFIG_DIR"] = str(tmp_path)
     env["CI"] = "true"  # Disable animations in tests
 
+    env["PYTHONUNBUFFERED"] = "1"
+    env["PYTHONPATH"] = (
+        f"{str(Path(__file__).parent.parent / 'src')}:{str(Path(__file__).parent.parent)}:."
+    )
+
     def _run_cli(command_args: list[str], expected_exit_code: int = 0):
         # Mock input to automatically say 'y' for overwrite prompts
         monkeypatch.setattr("builtins.input", lambda _: "y")
-        cmd = ["python", "-m", "src.cc"] + command_args
+        cmd = [
+            "python",
+            "-c",
+            f"import sys; sys.path.insert(0, '{Path(__file__).parent.parent / 'src'}'); import cc.__main__; cc.__main__.main()",
+        ] + command_args
         result = subprocess.run(
             cmd,
             capture_output=True,
@@ -124,7 +133,7 @@ def cli_runner(tmp_path, monkeypatch):
 @pytest.fixture
 def clear_db_initialized_paths():
     """Fixture to clear the DB._initialized_paths before each test."""
-    from src.cc.storage_ext import DB
+    from cc.storage.db import DB
 
     DB._initialized_paths.clear()
     yield

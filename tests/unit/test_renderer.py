@@ -1,224 +1,165 @@
-"""Tests for the renderer."""
+"""Test the event stream renderer."""
 
-from io import StringIO
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
+from cc.lib.color import C
 from cc.renderer import Renderer
 
 
+@pytest.fixture
+def mock_config():
+    """Provides a mock config object for the renderer."""
+    config = MagicMock()
+    config.enable_rolling_summary = False
+    return config
+
+
+async def generate_events(events):
+    """An async generator to yield a list of events."""
+    for event in events:
+        yield event
+
+
 @pytest.mark.asyncio
-async def test_chunked_respond():
-    """Test that chunked respond events strip leading space only on state transition."""
-    mock_events = [
-        {"type": "respond", "content": " Hello", "timestamp": 1.0},
-        {"type": "respond", "content": "! I'm", "timestamp": 1.1},
-        {"type": "respond", "content": " here", "timestamp": 1.2},
-        {"type": "end", "content": "", "timestamp": 1.3},
+@patch.dict("os.environ", {"CI": "true"})  # Disable spinners for deterministic output
+async def test_think_and_respond(capsys, mock_config):
+    """Test rendering of a simple think -> respond sequence."""
+    events = [
+        {"type": "think", "content": "First, I will ponder."},
+        {"type": "respond", "content": "Then, I will answer."},
     ]
+    stream = generate_events(events)
+    renderer = Renderer(config=mock_config)
 
-    async def mock_stream():
-        for event in mock_events:
-            yield event
+    await renderer.render_stream(stream)
 
-    output = StringIO()
-    with patch("sys.stdout", output):
-        renderer = Renderer()
-        await renderer.render_stream(mock_stream())
-
-    output_text = output.getvalue()
-    assert "Hello! I'm here" in output_text
-    assert "  " not in output_text
+    captured = capsys.readouterr()
+    expected_output = (
+        f"\n{C.GRAY}~{C.R} First, I will ponder.\n{C.MAGENTA}>{C.R} Then, I will answer."
+    )
+    assert captured.out.strip() == expected_output.strip()
 
 
 @pytest.mark.asyncio
-async def test_chunked_think():
-    """Test that chunked think events strip leading space only on state transition."""
-    mock_events = [
-        {"type": "think", "content": " analyzing", "timestamp": 1.0},
-        {"type": "think", "content": " the", "timestamp": 1.1},
-        {"type": "think", "content": " request", "timestamp": 1.2},
-        {"type": "end", "content": "", "timestamp": 1.3},
-    ]
-
-    async def mock_stream():
-        for event in mock_events:
-            yield event
-
-    output = StringIO()
-    with patch("sys.stdout", output):
-        renderer = Renderer()
-        await renderer.render_stream(mock_stream())
-
-    output_text = output.getvalue()
-    assert "analyzing the request" in output_text
-
-
-@pytest.mark.asyncio
-async def test_strips_trailing_newline():
-    """Test that trailing newlines are stripped before state transitions."""
-    mock_events = [
-        {"type": "respond", "content": "Here is the answer", "timestamp": 1.0},
-        {"type": "respond", "content": "\n\n", "timestamp": 1.1},
+@patch.dict("os.environ", {"CI": "true"})
+async def test_tool_call_and_result(capsys, mock_config):
+    """Test rendering of a tool call and its successful result."""
+    events = [
+        {"type": "call", "content": '{"name": "file_read", "args": {"path": "test.py"}}'},
+        {"type": "execute"},
         {
-            "type": "call",
-            "content": '{"name": "file_read", "args": {"file": "test.py"}}',
-            "timestamp": 1.2,
+            "type": "result",
+            "payload": {"outcome": "Read 25 lines", "content": "print('hello')"},
         },
-        {"type": "result", "payload": {"outcome": "ok"}, "timestamp": 1.3},
-        {"type": "end", "content": "", "timestamp": 1.4},
+        {"type": "end"},
     ]
+    stream = generate_events(events)
+    renderer = Renderer(config=mock_config)
 
-    async def mock_stream():
-        for event in mock_events:
-            yield event
+    await renderer.render_stream(stream)
 
-    output = StringIO()
-    with patch("sys.stdout", output):
-        renderer = Renderer()
-        await renderer.render_stream(mock_stream())
-
-    output_text = output.getvalue()
-    lines = output_text.split("\n")
-    assert not any(line == "" and lines[i + 1].startswith("○") for i, line in enumerate(lines[:-1]))
+    captured = capsys.readouterr()
+    expected_output = (
+        f"\n{C.CYAN}○{C.R} file_read(test.py): ..."
+        f"\r\033[K{C.GREEN}●{C.R} file_read(test.py): Read 25 lines\n"
+        "\n\n"
+    )
+    # We strip because the final newline handling can be tricky
+    assert captured.out.strip() == expected_output.strip()
 
 
 @pytest.mark.asyncio
-async def test_agent_stream():
-    """Test that renderer correctly processes agent event stream."""
-    # Mock agent stream with various event types
-    mock_events = [
-        {"type": "user", "content": "test query", "timestamp": 1.0},
-        {"type": "think", "content": "analyzing request", "timestamp": 1.1},
+@patch.dict("os.environ", {"CI": "true"})
+async def test_tool_call_with_error(capsys, mock_config):
+    """Test rendering of a tool call that results in an error."""
+    events = [
+        {"type": "call", "content": '{"name": "file_read", "args": {"path": "nonexistent.py"}}'},
+        {"type": "execute"},
         {
-            "type": "call",
-            "content": '{"name": "file_read", "args": {"file": "test.py"}}',
-            "timestamp": 1.2,
+            "type": "result",
+            "payload": {"error": True, "outcome": "File not found"},
         },
-        {"type": "result", "payload": {"outcome": "File read successfully"}, "timestamp": 1.3},
-        {"type": "respond", "content": "I found the issue", "timestamp": 1.4},
-        {"type": "end", "content": "", "timestamp": 1.5},
+        {"type": "end"},
     ]
+    stream = generate_events(events)
+    renderer = Renderer(config=mock_config)
 
-    # Create async generator
-    async def mock_stream():
-        for event in mock_events:
-            yield event
+    await renderer.render_stream(stream)
 
-    # Capture output
-    output = StringIO()
-    with patch("sys.stdout", output):
-        renderer = Renderer()
-        await renderer.render_stream(mock_stream())
-
-    # Verify output contains expected elements
-    output_text = output.getvalue()
-    assert "test query" in output_text
-    assert "analyzing request" in output_text
-    assert "○" in output_text
-    assert "File read successfully" in output_text
-    assert "I found the issue" in output_text
+    captured = capsys.readouterr()
+    expected_output = (
+        f"\n{C.CYAN}○{C.R} file_read(nonexistent.py): ..."
+        f"\r\033[K{C.RED}✗{C.R} file_read(nonexistent.py): File not found\n"
+        "\n\n"
+    )
+    assert captured.out.strip() == expected_output.strip()
 
 
 @pytest.mark.asyncio
-async def test_verbose_metrics():
-    """Test verbose mode shows metrics information."""
-    mock_events = [
-        {"type": "metric", "total": {"input": 100, "output": 200, "duration": 2.5}},
-        {"type": "end", "content": ""},
-    ]
+@patch.dict("os.environ", {"CI": "true"})
+async def test_stream_error(capsys, mock_config):
+    """Test that an error in the stream itself is rendered correctly."""
 
-    async def mock_stream():
-        for event in mock_events:
-            yield event
+    async def error_stream():
+        yield {"type": "think", "content": "I am thinking..."}
+        raise ValueError("Something went wrong")
 
-    output = StringIO()
-    with patch("sys.stdout", output):
-        renderer = Renderer(verbose=True)
-        await renderer.render_stream(mock_stream())
+    renderer = Renderer(config=mock_config)
 
-    output.getvalue()
-    # Verbose metrics removed in simplification - test passes if no error
+    with pytest.raises(ValueError, match="Something went wrong"):
+        await renderer.render_stream(error_stream())
+
+    captured = capsys.readouterr()
+    assert f"\n{C.RED}✗ Stream error: Something went wrong{C.R}" in captured.out
 
 
 @pytest.mark.asyncio
-async def test_error_handling():
-    """Test renderer handles error events gracefully."""
-    mock_events = [
-        {"type": "error", "content": "Something went wrong", "timestamp": 1.0},
-    ]
+@patch.dict("os.environ", {"CI": "true"})
+async def test_direct_error_event(capsys, mock_config):
+    """Test rendering of an explicit 'error' event."""
+    events = [{"type": "error", "payload": {"error": "Invalid API key"}}]
+    stream = generate_events(events)
+    renderer = Renderer(config=mock_config)
 
-    async def mock_stream():
-        for event in mock_events:
-            yield event
+    await renderer.render_stream(stream)
 
-    output = StringIO()
-    with patch("sys.stdout", output):
-        renderer = Renderer()
-        await renderer.render_stream(mock_stream())
-
-    output_text = output.getvalue()
-    assert "Something went wrong" in output_text
+    captured = capsys.readouterr()
+    assert f"{C.RED}✗{C.R} Invalid API key" in captured.out
 
 
 @pytest.mark.asyncio
-async def test_interrupt_handling():
-    """Test renderer handles interrupt events correctly."""
-    mock_events = [
-        {"type": "interrupt", "content": "User cancelled", "timestamp": 1.0},
-    ]
+@patch.dict("os.environ", {"CI": "true"})
+async def test_interrupt_event(capsys, mock_config):
+    """Test rendering of an explicit 'interrupt' event."""
+    events = [{"type": "interrupt"}]
+    stream = generate_events(events)
+    renderer = Renderer(config=mock_config)
 
-    async def mock_stream():
-        for event in mock_events:
-            yield event
+    await renderer.render_stream(stream)
 
-    output = StringIO()
-    with patch("sys.stdout", output):
-        renderer = Renderer()
-        await renderer.render_stream(mock_stream())
-
-    output_text = output.getvalue()
-    assert "Interrupted" in output_text
-
-
-def test_state_management():
-    """Test renderer manages internal state correctly."""
-    renderer = Renderer()
-    assert renderer.state is None
-    assert renderer.verbose is False
-
-    verbose_renderer = Renderer(verbose=True)
-    assert verbose_renderer.verbose is True
-
-
-def test_symbol_consistency():
-    """Test that symbols match cogency conventions."""
-    # These symbols should match cogency CLI conventions
-
-    # Verify by checking renderer source or behavior
-    renderer = Renderer()
-    assert hasattr(renderer, "render_stream")  # Core contract method
+    captured = capsys.readouterr()
+    assert f"{C.YELLOW}⚠{C.R} Interrupted" in captured.out
 
 
 @pytest.mark.asyncio
-async def test_no_duplicate_output():
-    """Test that duplicate respond events don't cause repeated output."""
-    mock_events = [
-        {"type": "respond", "content": "Hello", "timestamp": 1.0},
-        {"type": "respond", "content": "Hello", "timestamp": 1.1},
-        {"type": "respond", "content": "Hello", "timestamp": 1.2},
-        {"type": "end", "content": "", "timestamp": 1.3},
+@patch.dict("os.environ", {"CI": "true"})
+async def test_header_rendering(capsys, mock_config):
+    """Test that the header is rendered correctly based on initial state."""
+    messages = [
+        {"type": "user", "content": "hello"},
+        {"type": "call", "content": "..."},
+        {"type": "metric", "total": {"input": 100, "output": 200}},
     ]
+    summaries = [{"summary": "A previous conversation."}]
+    events = [{"type": "think", "content": "..."}]
+    stream = generate_events(events)
+    renderer = Renderer(messages=messages, summaries=summaries, config=mock_config)
 
-    async def mock_stream():
-        for event in mock_events:
-            yield event
+    await renderer.render_stream(stream)
 
-    output = StringIO()
-    with patch("sys.stdout", output):
-        renderer = Renderer()
-        await renderer.render_stream(mock_stream())
-
-    output_text = output.getvalue()
-    assert output_text.count("Hello") == 3
+    captured = capsys.readouterr()
+    assert "context:" in captured.out
+    assert "A previous conversation." in captured.out
+    assert "» 3 msgs | 1 calls | 100→200 tok" in captured.out
