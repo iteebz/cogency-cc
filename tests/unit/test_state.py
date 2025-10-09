@@ -15,12 +15,10 @@ def temp_config_dir(tmp_path: Path) -> Path:
 
 
 def test_config_initialization_defaults():
-    """Test that Config initializes with expected default values."""
     config = Config()
     assert config.provider == "glm"
     assert config.model is None
     assert config.user_id == "new_user"
-    assert config.tools == ["file", "web", "memory"]
 
 
 def test_config_post_init_sets_correct_path(temp_config_dir: Path):
@@ -30,26 +28,20 @@ def test_config_post_init_sets_correct_path(temp_config_dir: Path):
 
 
 def test_save_and_load_cycle(temp_config_dir: Path):
-    """Test that saving and then loading a config preserves its values."""
-    # 1. Create and save a non-default config
     config_save = Config(config_dir=temp_config_dir)
     config_save.provider = "openai"
     config_save.model = "gpt-5-codex-low"
     config_save.user_id = "test_user"
-    config_save.tools = ["file"]
     config_save.save()
 
     assert config_save.config_file.exists()
 
-    # 2. Create a new default config and load from the saved file
     config_load = Config(config_dir=temp_config_dir)
     config_load.load()
 
-    # 3. Assert that the loaded config matches the saved one
     assert config_load.provider == "openai"
     assert config_load.model == "gpt-5-codex-low"
     assert config_load.user_id == "test_user"
-    assert config_load.tools == ["file"]
 
 
 def test_load_from_non_existent_file(temp_config_dir: Path):

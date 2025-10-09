@@ -67,9 +67,6 @@ def create_agent(app_config: Config, cli_instruction: str = "") -> Agent:
     from cogency.tools import tools
 
     llm = _create_llm(app_config.provider, app_config, tools)
-
-    _get_model_name(llm, app_config.provider)
-
     model_name = _get_model_name(llm, app_config.provider)
 
     code_identity_prompt = _get_agent_identity(model_name)
@@ -103,28 +100,30 @@ def create_agent(app_config: Config, cli_instruction: str = "") -> Agent:
 
 def _create_llm(provider_name: str, app_config: Config, tools: list[dict] | None = None):
     providers = {
-        "glm": GLM,
-        "openai": OpenAI,
-        "anthropic": Anthropic,
-        "gemini": Gemini,
+        "glm": (GLM, {}),
+        "openai": (OpenAI, {"http_model"}),
+        "anthropic": (Anthropic, {"http_model"}),
+        "gemini": (Gemini, {"http_model"}),
     }
 
     if provider_name not in providers:
         raise ValueError(f"Unknown provider: {provider_name}")
 
     api_key = app_config.get_api_key(provider_name)
+    cls, model_params = providers[provider_name]
 
-    # Special handling for actual gpt-5-codex model
-    if provider_name == "openai" and app_config.model and "gpt-5-codex" in app_config.model:
-        return Codex(api_key=api_key, model=app_config.model, tools=tools)
-    # Regular OpenAI models
     if provider_name == "openai" and app_config.model:
-        return OpenAI(api_key=api_key, http_model=app_config.model)
-    if provider_name == "gemini" and app_config.model:
-        return Gemini(api_key=api_key, http_model=app_config.model)
-    if provider_name == "anthropic" and app_config.model:
-        return Anthropic(api_key=api_key, http_model=app_config.model)
-    return providers[provider_name](api_key=api_key)
+        if "codex" in app_config.model:
+            return Codex(api_key=api_key, model=app_config.model, tools=tools)
+        if "realtime" in app_config.model:
+            return OpenAI(api_key=api_key, websocket_model=app_config.model)
+
+    kwargs = {"api_key": api_key}
+    if app_config.model and model_params:
+        param = next(iter(model_params))
+        kwargs[param] = app_config.model
+
+    return cls(**kwargs)
 
 
 def _get_model_name(llm, provider: str) -> str:

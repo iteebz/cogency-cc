@@ -26,13 +26,11 @@ class Renderer:
         messages: list | None = None,
         llm=None,
         conv_id: str | None = None,
-        summaries: list | None = None,
         config=None,
         evo_mode: bool = False,
     ):
         self.verbose = verbose
         self.messages = messages or []
-        self.summaries = summaries or []
         self.llm = llm
         self.conv_id = conv_id
         self.config = config
@@ -70,12 +68,6 @@ class Renderer:
             raise
 
     def _render_header(self):
-        if self.summaries:
-            print(f"{C.GRAY}context:{C.R}")
-            for s in self.summaries:
-                print(f"{C.GRAY}  {s['summary']}{C.R}")
-            print()
-
         parts = []
         if self.messages:
             parts.append(f"{len(self.messages)} msgs")

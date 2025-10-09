@@ -35,14 +35,10 @@ class Config:
 
     provider: str = "glm"
     model: str | None = None
-    mode: str = "resume"
     user_id: str = "new_user"
     conversation_id: str = "dev_work"
-    tools: list[str] = field(default_factory=lambda: ["file", "web", "memory"])
     api_keys: dict[str, str] = field(default_factory=dict)
-    token_limit: int = 100000
-    compact_threshold: int = 12000
-    debug_mode: bool = False  # Added debug_mode
+    debug_mode: bool = False
 
     config_dir: Path = field(default_factory=lambda: _default_config_dir())
     config_file: Path = field(init=False)
@@ -89,14 +85,10 @@ class Config:
         data = {
             "provider": self.provider,
             "model": self.model,
-            "mode": self.mode,
             "user_id": self.user_id,
             "conversation_id": self.conversation_id,
-            "tools": self.tools,
             "api_keys": self.api_keys,
-            "token_limit": self.token_limit,
-            "compact_threshold": self.compact_threshold,
-            "debug_mode": self.debug_mode,  # Added debug_mode
+            "debug_mode": self.debug_mode,
         }
         with open(self.config_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
@@ -109,18 +101,13 @@ class Config:
         self.save()
 
     def to_dict(self) -> dict:
-        """Return a dictionary representation of the config for serialization."""
         return {
             "provider": self.provider,
             "model": self.model,
-            "mode": self.mode,
             "user_id": self.user_id,
             "conversation_id": self.conversation_id,
-            "tools": self.tools,
             "api_keys": self.api_keys,
-            "token_limit": self.token_limit,
-            "compact_threshold": self.compact_threshold,
-            "debug_mode": self.debug_mode,  # Added debug_mode
+            "debug_mode": self.debug_mode,
         }
 
     @classmethod

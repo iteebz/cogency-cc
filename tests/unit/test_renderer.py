@@ -143,20 +143,16 @@ async def test_interrupt_event(capsys, mock_config):
 @pytest.mark.asyncio
 @patch.dict("os.environ", {"CI": "true"})
 async def test_header_rendering(capsys, mock_config):
-    """Test that the header is rendered correctly based on initial state."""
     messages = [
         {"type": "user", "content": "hello"},
         {"type": "call", "content": "..."},
         {"type": "metric", "total": {"input": 100, "output": 200}},
     ]
-    summaries = [{"summary": "A previous conversation."}]
     events = [{"type": "think", "content": "..."}]
     stream = generate_events(events)
-    renderer = Renderer(messages=messages, summaries=summaries, config=mock_config)
+    renderer = Renderer(messages=messages, config=mock_config)
 
     await renderer.render_stream(stream)
 
     captured = capsys.readouterr()
-    assert "context:" in captured.out
-    assert "A previous conversation." in captured.out
     assert "» 3 msgs | 1 calls | 100→200 tok" in captured.out

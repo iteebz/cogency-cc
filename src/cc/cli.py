@@ -71,17 +71,12 @@ async def run_agent(
 
     storage = SQLite()
     msgs = await storage.load_messages(conv_id, "cogency")
-    summaries = []
-
-    if resuming:
-        pass
 
     llm = agent.config.llm if hasattr(agent, "config") else None
     renderer = Renderer(
         messages=msgs,
         llm=llm,
         conv_id=conv_id,
-        summaries=summaries,
         config=config,
         evo_mode=evo_mode,
     )
