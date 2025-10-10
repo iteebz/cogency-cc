@@ -6,8 +6,8 @@ import typer
 from cogency.lib.storage import SQLite
 
 from .conversations import get_last_conversation
-from .lib.color import C
 from .lib.fs import root
+from .render.color import C
 from .state import Config
 from .storage import Snapshots
 

@@ -13,7 +13,7 @@ from cc.agent import create_agent
 @patch("cc.agent.Config")
 async def test_event_flow(mock_config_class, mock_glm):
     """Test complete flow from agent creation to renderer output."""
-    from cc.renderer import Renderer
+    from cc.render import Renderer
 
     # Setup agent mock
     mock_config = MagicMock()

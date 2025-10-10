@@ -11,12 +11,13 @@ Event symbols:
 
 import asyncio
 import os
-import re
 import time
 
 from rich import print as rprint
 
-from .lib.color import C
+from .color import C
+from .diff import render_diff
+from .format import format_call, format_result, tool_outcome
 
 
 class Renderer:
@@ -156,13 +157,8 @@ class Renderer:
                     call = parse_tool_call(e.get("content", ""))
                     key = self._call_key(call)
                     self.pending_calls[key] = call
-                    print(
-                        f"{C.GRAY}○{C.R} {C.GRAY}{self._fmt_call(call)}{C.R}",
-                        end="",
-                        flush=True,
-                    )
+                    print(f"{C.GRAY}○{C.R} {C.GRAY}{format_call(call)}{C.R}", end="", flush=True)
                 except Exception:
-                    # Remove last call on exception
                     if self.pending_calls:
                         last_key = list(self.pending_calls.keys())[-1]
                         del self.pending_calls[last_key]
@@ -188,19 +184,28 @@ class Renderer:
                     # If we have pending calls, assume this result is for the most recent one
                     call_key = list(self.pending_calls.keys())[-1]
                     call = self.pending_calls.pop(call_key)
-                    duration = None
                     if start := self.call_start_times.pop(call_key, None):
-                        duration = time.time() - start
+                        time.time() - start
 
-                    outcome = self._fmt_result(call, e, duration)
-                    is_error = e.get("payload", {}).get("error", False)
+                    payload = e.get("payload", {})
+                    outcome = format_result(call, payload)
+                    is_error = payload.get("error", False)
                     symbol = f"{C.RED}✗{C.R}" if is_error else f"{C.GREEN}●{C.R}"
-                    print(f"\r\033[K{symbol} {outcome}\n", end="", flush=True)
+                    print(f"\r\033[K{symbol} {outcome}", flush=True)
+
+                    content = payload.get("content")
+                    if content and call.name == "edit":
+                        for line in render_diff(content):
+                            print(line)
+                        print()
+                    else:
+                        print()
+
                     self.state = None
                 else:
                     # No pending calls, display result directly
                     payload = e.get("payload", {})
-                    outcome = self._tool_outcome(payload)
+                    outcome = tool_outcome(payload)
                     if outcome:
                         message = outcome
                     else:
@@ -253,7 +258,7 @@ class Renderer:
         try:
             while True:
                 elapsed = int(time.time() - start)
-                label = self._fmt_call(call).replace(": ...", "")
+                label = format_call(call).replace(": ...", "")
                 print(f"\r{C.CYAN}{frames[i]} {label} ({elapsed}s){C.R}", end="", flush=True)
                 i = (i + 1) % len(frames)
                 await asyncio.sleep(0.4)
@@ -265,98 +270,28 @@ class Renderer:
             print()
         self.state = None
 
-    def _fmt_call(self, call) -> str:
-        name = self._tool_name(call.name)
-        arg = self._tool_arg(call.args)
-        return f"{name}({arg}): ..." if arg else f"{name}(): ..."
-
-    def _fmt_result(self, call, event, duration: float | None = None) -> str:
-        name = self._tool_name(call.name)
-        arg = self._tool_arg(call.args)
-        outcome = self._tool_outcome(event.get("payload", {}))
-        base = f"{name}({arg})" if arg else f"{name}()"
-        return f"{base}: {outcome}"
-
-    def _tool_name(self, name: str) -> str:
-        parts = name.split(".")
-        if len(parts) > 1:
-            return parts[-1]
-        return name
-
-    def _tool_arg(self, args: dict) -> str:
-        if not isinstance(args, dict):
-            return ""
-
-        for k in ["file", "path", "file_path", "pattern", "query", "command", "url", "dir"]:
-            if v := args.get(k):
-                s = str(v)
-                return s if len(s) < 50 else s[:47] + "..."
-
-        if args:
-            s = str(next(iter(args.values())))
-            return s if len(s) < 50 else s[:47] + "..."
-        return ""
-
-    def _fmt_duration(self, seconds: float) -> str:
-        if seconds < 0:
-            seconds = 0
-        if seconds < 0.1:
-            return "0.1s"
-        if seconds < 1:
-            return f"{seconds:.1f}s"
-        if seconds < 10:
-            return f"{seconds:.1f}s"
-        if seconds < 60:
-            return f"{seconds:.0f}s"
-        minutes = int(seconds // 60)
-        rem = seconds % 60
-        if minutes < 10:
-            return f"{minutes}m {rem:.0f}s"
-        return f"{minutes}m"
-
-    def _tool_outcome(self, payload: dict) -> str:
-        if payload.get("error"):
-            return payload.get("outcome", "error")
-
-        outcome = payload.get("outcome", "")
-
-        if not outcome:
-            return "ok"
-
-        read_match = re.match(
-            r"(Grep simple clean|Wrote|Appended|Read) (.+) \((\d+) lines?\)", outcome
-        )
-        if read_match:
-            lines = read_match.group(3)
-            return f"+{lines} lines"
-
-        modify_match = re.match(r"(Modified|Updated) (.+) \(([-+0-9/]+)\)", outcome)
-        if modify_match:
-            return modify_match.group(3)
-
-        replace_match = re.match(r"(code\.replace|replace) (.+) \(([-+0-9/]+)\)", outcome)
-        if replace_match:
-            return replace_match.group(3)
-
-        if outcome.startswith("LOC "):
-            parts = outcome[4:].split()
-            if len(parts) == 2:
-                return f"+{parts[0]}/-{parts[1]}"
-
-        if outcome.startswith("Listed ") and " items" in outcome:
-            return f"{outcome.split()[1]} items"
-
-        if outcome.startswith("Found "):
-            if " matches" in outcome:
-                return f"{outcome.split()[1]} matches"
-            if " results" in outcome:
-                return f"{outcome.split()[1]} results"
-
-        return outcome
-
     def _call_key(self, call):
         # Return a hashable key for the call to distinguish concurrent calls
         return f"{call.name}::{str(call.args)}"
+
+    def _render_diff(self, diff: str):
+        if not diff.strip():
+            print()
+            return
+
+        lines = diff.split("\n")
+        for line in lines:
+            if line.startswith("---") or line.startswith("+++"):
+                print(f"{C.GRAY}{line}{C.R}")
+            elif line.startswith("@@"):
+                print(f"{C.CYAN}{line}{C.R}")
+            elif line.startswith("+"):
+                print(f"{C.GREEN}{line}{C.R}")
+            elif line.startswith("-"):
+                print(f"{C.RED}{line}{C.R}")
+            else:
+                print(line)
+        print()
 
     async def _finalize(self):
         if not self.evo_mode:

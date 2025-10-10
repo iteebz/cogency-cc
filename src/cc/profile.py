@@ -5,7 +5,7 @@ import json
 import typer
 from cogency.lib.storage import DB, SQLite
 
-from .lib.color import C
+from .render.color import C
 from .state import Config
 from .storage import Snapshots
 

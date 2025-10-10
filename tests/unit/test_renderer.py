@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cc.lib.color import C
-from cc.renderer import Renderer
+from cc.render import Renderer
+from cc.render.color import C
 
 
 @pytest.fixture

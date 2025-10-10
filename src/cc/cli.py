@@ -13,7 +13,7 @@ from .alias import MODEL_ALIASES
 from .commands import context_command, nuke_command, profile_command
 from .conversations import get_last_conversation
 from .lib.fs import root
-from .renderer import Renderer
+from .render import Renderer
 from .session import session_app
 from .state import Config
 from .storage import Snapshots

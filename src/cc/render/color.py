@@ -8,8 +8,8 @@ class C:
     MAGENTA = "\033[35m"
     CYAN = "\033[36m"
     WHITE = "\033[37m"
-    GRAY = "\033[90m" # Bright Black
-    RESET = "\033[0m" # Reset to default
+    GRAY = "\033[90m"  # Bright Black
+    RESET = "\033[0m"  # Reset to default
 
     # Background colors (optional, but good to have)
     BG_BLACK = "\033[40m"
@@ -27,7 +27,7 @@ class C:
     INVERT = "\033[7m"
 
     # Aliases for common usage in renderer
-    R = RESET # Reset
+    R = RESET  # Reset
     r = RED
     g = GREEN
     y = YELLOW
@@ -35,5 +35,5 @@ class C:
     m = MAGENTA
     c = CYAN
     w = WHITE
-    k = BLACK # Black
-    G = GRAY # Gray
+    k = BLACK  # Black
+    G = GRAY  # Gray
