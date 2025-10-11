@@ -2,6 +2,7 @@ default:
     @just --list
 
 clean:
+    @echo "Cleaning cogency-cc..."
     @rm -rf dist build .pytest_cache .ruff_cache __pycache__ .venv
     @find . -type d -name "__pycache__" -exec rm -rf {} +
 

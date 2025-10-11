@@ -93,7 +93,7 @@ def create_agent(app_config: Config, cli_instruction: str = "") -> Agent:
         identity=code_identity_prompt,
         instructions=combined_instructions,
         tools=tools,
-        mode="auto",
+        mode="replay",
         profile=profile,
     )
 
@@ -121,9 +121,46 @@ def _create_llm(provider_name: str, app_config: Config, tools: list[dict] | None
     kwargs = {"api_key": api_key}
     if app_config.model and model_params:
         param = next(iter(model_params))
-        kwargs[param] = app_config.model
+
+        # Map HTTP models to WebSocket models for resume mode
+        model_name = app_config.model
+        if provider_name == "gemini":
+            websocket_model = _map_gemini_websocket_model(model_name)
+            if websocket_model:
+                kwargs["http_model"] = model_name
+                kwargs["websocket_model"] = websocket_model
+            else:
+                kwargs[param] = model_name
+        elif provider_name == "openai":
+            websocket_model = _map_openai_websocket_model(model_name)
+            if websocket_model:
+                kwargs["http_model"] = model_name
+                kwargs["websocket_model"] = websocket_model
+            else:
+                kwargs[param] = model_name
+        else:
+            kwargs[param] = model_name
 
     return cls(**kwargs)
+
+
+def _map_gemini_websocket_model(model: str) -> str | None:
+    """Map Gemini HTTP models to their WebSocket Live API equivalents."""
+    mapping = {
+        "gemini-2.5-pro": "gemini-2.5-pro-live-preview",
+        "gemini-2.5-flash": "gemini-2.5-flash-live-preview",
+        "gemini-2.0-flash": "gemini-2.0-flash-live-001",
+    }
+    return mapping.get(model)
+
+
+def _map_openai_websocket_model(model: str) -> str | None:
+    """Map OpenAI HTTP models to their Realtime API equivalents."""
+    mapping = {
+        "gpt-4o": "gpt-4o-realtime-preview",
+        "gpt-4o-mini": "gpt-4o-mini-realtime-preview",
+    }
+    return mapping.get(model)
 
 
 def _get_model_name(llm, provider: str) -> str:

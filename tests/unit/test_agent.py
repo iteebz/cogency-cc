@@ -43,7 +43,7 @@ def test_create_agent_with_default_config():
             call_kwargs = mock_agent_class.call_args[1]
             assert call_kwargs["max_iterations"] == 42
             assert call_kwargs["profile"] is True
-            assert call_kwargs["mode"] == "auto"
+            assert call_kwargs["mode"] == "replay"
             assert "You are cogency coding cli (cc) powered by GPT-4" in call_kwargs["identity"]
             assert "Help with coding" in call_kwargs["instructions"]
             assert "--- User .cogency/cc.md ---" in call_kwargs["instructions"]
