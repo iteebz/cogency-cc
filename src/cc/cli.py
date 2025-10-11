@@ -275,7 +275,6 @@ def default_cmd(
         config.conversation_id = current_conv_id
 
         agent = create_agent(config, "")
-        typer.echo(f"Using model: {config.model or config.provider}")
         asyncio.run(run_agent(agent, query, current_conv_id, resuming, evo, config))
     finally:
         if previous_cwd and Path.cwd() != previous_cwd:

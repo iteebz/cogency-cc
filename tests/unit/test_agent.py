@@ -148,12 +148,11 @@ def test_security_boundary_enforced():
 def test_coding_structure():
     """Test that CODE contains required elements."""
     coding_identity = CC_IDENTITY
-    assert "You are Cogency Code, a surgical coding agent." in coding_identity
+    assert "You are Cogency (cc), a surgical coding cli agent." in coding_identity
     assert "PRINCIPLES" in coding_identity
     assert "WORKFLOW" in coding_identity
     assert "ERROR HANDLING" in coding_identity
 
     # Verify key principles are present
-    assert "read` files before making claims" in coding_identity
-    assert "NEVER fabricate tool output" in coding_identity
-    assert "Raw JSON is forbidden" in coding_identity
+    assert "- Read before claiming" in coding_identity
+    assert "- Never fabricate tool output" in coding_identity

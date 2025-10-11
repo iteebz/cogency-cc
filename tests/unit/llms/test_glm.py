@@ -129,8 +129,8 @@ async def test_stream_no_duplicates():
         async for chunk in glm.stream([{"role": "user", "content": "test"}]):
             chunks.append(chunk)
 
-        assert chunks == ["Hello", " world", "§end"]
-        assert len(chunks) == 3
+        assert chunks == ["Hello", " world"]
+        assert len(chunks) == 2
 
 
 @pytest.mark.asyncio
@@ -177,8 +177,8 @@ async def test_stream_handles_fragmented_sse_messages():
             chunks.append(chunk)
 
         # Should yield proper message chunks, not character-by-character
-        assert chunks == ["Hello", " world", "!", "§end"]
-        assert len(chunks) == 4
+        assert chunks == ["Hello", " world", "!"]
+        assert len(chunks) == 3
 
 
 @pytest.mark.asyncio
@@ -313,5 +313,5 @@ async def test_stream_emits_tokens_immediately():
 
         # Should emit tokens as soon as parsed from SSE messages
         # Each complete SSE message yields one content chunk
-        assert chunks == ["H", "i", "§end"]
-        assert len(chunks) == 3
+        assert chunks == ["H", "i"]
+        assert len(chunks) == 2

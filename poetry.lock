@@ -391,7 +391,7 @@ optional = false
 python-versions = ">=3.11,<4.0"
 groups = ["main"]
 files = []
-develop = true
+develop = false
 
 [package.dependencies]
 anthropic = "^0.67.0"
@@ -2451,4 +2451,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<4.0"
-content-hash = "b4c5d7cfccccfbd5db6bc24e656459c1ca6bbccaa562937b8608c9e34bacb1cf"
+content-hash = "3774f8f1932d8a2b10de27c2d06f642e96ecddf0b9415e8127c590689665980f"

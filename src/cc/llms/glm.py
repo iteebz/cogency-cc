@@ -28,7 +28,6 @@ class GLM(LLM):
         self.max_tokens = max_tokens
 
         self._session = None
-        self._recent_content = []  # Track recent content for intelligent completion
 
     def _create_session(self):
         return aiohttp.ClientSession()
@@ -49,7 +48,7 @@ class GLM(LLM):
                 }
 
                 url = "https://api.z.ai/api/coding/paas/v4/chat/completions"
-                timeout = aiohttp.ClientTimeout(total=120)
+                timeout = aiohttp.ClientTimeout(total=300, connect=30)
                 async with self._session.post(
                     url, headers=headers, json=data, timeout=timeout
                 ) as response:
@@ -97,7 +96,9 @@ class GLM(LLM):
                     logger.debug(f"  msg[{i}] {m.get('role')}: {m.get('content', '')[:80]}")
 
                 url = "https://api.z.ai/api/coding/paas/v4/chat/completions"
-                timeout = aiohttp.ClientTimeout(total=120, sock_read=30)  # Longer timeouts
+                timeout = aiohttp.ClientTimeout(
+                    total=300, sock_read=60, connect=30
+                )  # Much longer timeouts
                 async with self._session.post(
                     url, headers=headers, json=data, timeout=timeout
                 ) as response:
@@ -107,6 +108,7 @@ class GLM(LLM):
                         raise ConnectionError(f"GLM API {response.status}: {error_text}")
 
                     buffer = ""
+                    stream_ended = False
                     try:
                         async for chunk in response.content.iter_any():
                             decoded = chunk.decode("utf-8")
@@ -114,7 +116,7 @@ class GLM(LLM):
                             buffer += decoded
                             logger.debug(f"GLM buffer len={len(buffer)}")
 
-                            while "\n" in buffer:
+                            while "\n" in buffer and not stream_ended:
                                 line, buffer = buffer.split("\n", 1)
                                 line = line.rstrip()
                                 logger.debug(f"GLM processed line: {repr(line[:100])}")
@@ -125,10 +127,8 @@ class GLM(LLM):
                                 data_str = line[6:]
                                 if data_str == "[DONE]":
                                     logger.debug("GLM stream: [DONE] received")
-                                    # Intelligent completion: only inject §end if not mid-tool-call
-                                    if self._should_inject_end():
-                                        yield "§end"
-                                    return
+                                    stream_ended = True
+                                    break  # Break from while loop
 
                                 try:
                                     chunk_data = json.loads(data_str)
@@ -141,24 +141,22 @@ class GLM(LLM):
 
                                     content = delta.get("content", "")
                                     if content:
-                                        # Track recent content for intelligent completion detection
-                                        self._recent_content.append(content)
-                                        if (
-                                            len(self._recent_content) > 10
-                                        ):  # Keep only recent content
-                                            self._recent_content.pop(0)
-
                                         logger.debug(f"GLM yielding content: {repr(content[:50])}")
                                         yield content
                                 except json.JSONDecodeError as e:
                                     logger.debug(f"GLM JSON decode error: {e}")
                                     continue
+
+                            if stream_ended:
+                                break  # Break from async for loop
                     except asyncio.CancelledError:
                         logger.debug("GLM stream cancelled")
                         raise
 
-            except asyncio.TimeoutError:
-                logger.error("GLM API stream timed out")
+            except asyncio.TimeoutError as e:
+                logger.error(f"GLM API stream timed out: {e}")
+                # Add more debugging info
+                logger.error("Timeout settings: total=300s, sock_read=60s, connect=30s")
                 raise RuntimeError("GLM API stream timed out") from None
             except aiohttp.ServerDisconnectedError:
                 await self.close()
@@ -181,29 +179,3 @@ class GLM(LLM):
             await self._session.close()
             logger.debug("GLM HTTP session closed")
         self._session = None
-
-    def _should_inject_end(self) -> bool:
-        """Determine if we should inject §end based on recent content.
-
-        Returns False if we detect an incomplete tool call (§call without §execute),
-        True otherwise.
-        """
-        recent_text = "".join(self._recent_content)
-
-        # Find the last §call and check if it has a corresponding §execute after it
-        last_call_pos = recent_text.rfind("§call:")
-        if last_call_pos == -1:
-            # No tool calls at all
-            logger.debug("GLM: No tool calls detected, injecting §end")
-            return True
-
-        # Check if there's a §execute after the last §call
-        execute_after_last_call = "§execute" in recent_text[last_call_pos:]
-
-        if not execute_after_last_call:
-            # Last tool call is incomplete
-            logger.debug("GLM: Detected incomplete tool call, not injecting §end")
-            return False
-        # Last tool call is complete or no tool calls
-        logger.debug("GLM: No incomplete tool calls, injecting §end")
-        return True

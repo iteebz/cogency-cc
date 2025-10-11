@@ -12,7 +12,7 @@ install:
 
 reload:
     @poetry remove cogency
-    @poetry install ../cogency
+    @poetry add ../cogency
 
 ci: format fix test build
 

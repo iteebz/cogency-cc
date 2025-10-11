@@ -8,6 +8,7 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from cogency.lib.ids import uuid7
 from cogency.lib.rotation import get_api_key as rotated_api_key
 from cogency.lib.rotation import load_keys as rotated_keys
 
@@ -36,7 +37,7 @@ class Config:
     provider: str = "glm"
     model: str | None = None
     user_id: str = "new_user"
-    conversation_id: str = "dev_work"
+    conversation_id: str = field(default_factory=uuid7)
     api_keys: dict[str, str] = field(default_factory=dict)
     debug_mode: bool = False
 
