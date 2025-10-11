@@ -143,6 +143,7 @@ class Renderer:
                     self.thinking_task = asyncio.create_task(self._think_spin())
 
             case "intent":
+                # Cancel spinner for intent events
                 if self.thinking_task:
                     self.thinking_task.cancel()
                     self.thinking_task = None
@@ -163,13 +164,16 @@ class Renderer:
                         self.first_chunk = True
                     content = e["content"].lstrip() if self.first_chunk else e["content"]
                     if self.first_chunk:
-                        self._print(content, end="", flush=True)
+                        self._print(f"{C.GRAY}{content}{C.R}", end="", flush=True)
                         self.first_chunk = False
                     else:
-                        self._print(content, end="", flush=True)
+                        self._print(f"{C.GRAY}{content}{C.R}", end="", flush=True)
 
             case "respond":
-                if self.thinking_task:
+                # Don't cancel spinner immediately - wait for real content
+                has_real_content = e["content"] and e["content"].strip()
+
+                if has_real_content and self.thinking_task:
                     self.thinking_task.cancel()
                     self.thinking_task = None
                     self._print("\r\033[K", end="", flush=True)
@@ -182,7 +186,9 @@ class Renderer:
                 # State transition: delay until we have real content
                 if self.state != "respond":
                     if content.strip():
-                        self._newline(force=True)
+                        # Only add newline if we're not at the start of a new line
+                        if not self._last_char_newline:
+                            self._newline()
                         self._print(f"{C.MAGENTA}›{C.R} ", end="", flush=True)
                         self.state = "respond"
                         self.first_chunk = False
@@ -335,6 +341,7 @@ class Renderer:
         self._last_char_newline = actual_end == "\n"
 
     def _newline(self, force: bool = False):
+        # Only add newline if not transitioning to respond state
         if (force or self.state in ("think", "respond")) and not self._last_char_newline:
             self._print()
 

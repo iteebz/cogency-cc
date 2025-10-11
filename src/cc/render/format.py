@@ -13,7 +13,14 @@ def tool_arg(args: dict) -> str:
     if not isinstance(args, dict):
         return ""
 
-    for k in ["file", "path", "pattern", "query", "command", "url"]:
+    if k := next((k for k in ["file", "path"] if k in args), None):
+        v = args[k]
+        s = str(v)
+        if k == "file" or (k == "path" and "." in s.split("/")[-1]):
+            s = s.split("/")[-1]
+        return s if len(s) < 50 else s[:47] + "..."
+
+    for k in ["pattern", "content", "query", "command", "url"]:
         if v := args.get(k):
             s = str(v)
             return s if len(s) < 50 else s[:47] + "..."

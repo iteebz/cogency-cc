@@ -40,7 +40,7 @@ async def test_think_and_respond(capsys, mock_config):
     captured = capsys.readouterr()
     expected_output = (
         f"{C.GRAY}0 msgs · 0 tools · glm-4.6{C.R}"
-        f"\n{C.GRAY}~{C.R} First, I will ponder.\n{C.MAGENTA}›{C.R} Then, I will answer."
+        f"\n{C.GRAY}~{C.R} {C.GRAY}First, I will ponder.{C.R}\n{C.MAGENTA}›{C.R} Then, I will answer."
     )
     assert captured.out.strip() == expected_output.strip()
 
@@ -274,3 +274,31 @@ async def test_trailing_whitespace_cleared_before_tool(capsys, mock_config):
     assert "\n\n\n\n" not in captured.out
     assert "Checking files" in captured.out
     assert "10 items" in captured.out
+
+
+@pytest.mark.asyncio
+@patch.dict("os.environ", {"CI": "true"})
+async def test_think_whitespace_suppressed(capsys, mock_config):
+    """Think should suppress empty/whitespace-only chunks."""
+    events = [
+        {"type": "think", "content": " \n"},
+        {"type": "think", "content": "Analyzing request"},
+        {"type": "think", "content": "\n\n"},
+        {"type": "call", "content": '{"name": "ls", "args": {"path": "."}}'},
+        {"type": "execute"},
+        {"type": "result", "payload": {"outcome": "Listed 10 items"}},
+        {"type": "end"},
+    ]
+    stream = generate_events(events)
+    renderer = Renderer(config=mock_config)
+
+    await renderer.render_stream(stream)
+
+    captured = capsys.readouterr()
+    out_lines = [line for line in captured.out.split("\n") if line.strip()]
+
+    empty_think_lines = [line for line in out_lines if line.strip() == f"{C.GRAY}~{C.R}"]
+    assert len(empty_think_lines) == 0, "Empty think should not render standalone prefix"
+    assert "Analyzing request" in captured.out
+    # No excessive whitespace before tool
+    assert "\n\n\n\n" not in captured.out

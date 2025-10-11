@@ -1,6 +1,6 @@
 """Load project instructions from COGENCY.md."""
 
-from pathlib import Path
+from .lib.fs import root
 
 CODE_IDENTITY_BASE = """You are Cogency Code, a coding agent.
 Your core function is to read, write, and reason about code with precision.
@@ -45,14 +45,12 @@ def code_identity() -> str:
 
 
 def load() -> str | None:
-    """Load cc.md from .cogency/ in project root if it exists."""
-    current = Path.cwd()
-
-    for parent in [current] + list(current.parents):
-        # Look for .cogency/cc.md
-        cc_md_path = parent / ".cogency" / "cc.md"
+    """Load cc.md from project root if it exists."""
+    project_root = root()
+    if project_root:
+        cc_md_path = project_root / "cc.md"
         if cc_md_path.exists():
             content = cc_md_path.read_text(encoding="utf-8")
-            return f"--- User .cogency/cc.md ---\n{content}\n--- End .cogency/cc.md ---"
+            return f"--- User cc.md ---\n{content}\n--- End cc.md ---"
 
     return None

@@ -150,9 +150,9 @@ def test_coding_structure():
     coding_identity = CC_IDENTITY
     assert "You are Cogency (cc), a surgical coding cli agent." in coding_identity
     assert "PRINCIPLES" in coding_identity
-    assert "WORKFLOW" in coding_identity
-    assert "ERROR HANDLING" in coding_identity
+    assert "EXECUTION" in coding_identity
+    assert "RUNTIME" in coding_identity
 
     # Verify key principles are present
-    assert "- Read before claiming" in coding_identity
-    assert "- Never fabricate tool output" in coding_identity
+    assert "- Exploration first" in coding_identity
+    assert "- Ground claims in tool output" in coding_identity
