@@ -3,7 +3,7 @@ import datetime
 from typing import Annotated
 
 import typer
-from cogency.lib.ids import uuid7
+from cogency.lib.uuid7 import uuid7
 
 from .state import Config
 from .storage import Snapshots

@@ -58,6 +58,7 @@ class Renderer:
         conv_id: str | None = None,
         config=None,
         evo_mode: bool = False,
+        latest_metric: dict | None = None,
     ):
         self.verbose = verbose
         self.messages = messages or []
@@ -65,13 +66,12 @@ class Renderer:
         self.conv_id = conv_id
         self.config = config
         self.evo_mode = evo_mode
+        self.latest_metric = latest_metric
         self.enable_rolling_summary = False
 
         self.state = None
         self.header_shown = False
-        self.first_chunk = True
         self.pending_calls = {}
-        self.spinner_tasks = {}
         self.thinking_task = None
         self.turn_start = None
         self.turn_tools = 0
@@ -81,14 +81,17 @@ class Renderer:
 
     async def render_stream(self, stream):
         self.turn_start = time.time()
+        if not self.header_shown:
+            self._render_header()
+            self.header_shown = True
 
         try:
             async for event in stream:
-                if not self.header_shown:
-                    self._render_header()
-                    self.header_shown = True
-
                 await self._render_event(event)
+        except asyncio.CancelledError:
+            self._print(f"\n{C.YELLOW}⚠{C.R} Interrupted by user.")
+            if self.thinking_task:
+                self.thinking_task.cancel()
         except Exception as e:
             from cogency.lib.logger import logger
 
@@ -101,11 +104,8 @@ class Renderer:
 
         # Get latest token count from metrics
         token_part = None
-        latest_metric = next(
-            (m for m in reversed(self.messages) if m.get("type") == "metric"), None
-        )
-        if latest_metric and "total" in latest_metric:
-            total = latest_metric["total"]
+        if self.latest_metric and "total" in self.latest_metric:
+            total = self.latest_metric["total"]
             total_tokens = total.get("input", 0) + total.get("output", 0)
             token_part = f"{total_tokens / 1000:.1f}k tokens"
 
@@ -138,16 +138,16 @@ class Renderer:
         match e["type"]:
             case "user":
                 if e["content"]:
-                    self._print(f"{C.GRAY}---{C.R}\n{C.CYAN}${C.R} {e['content']}")
+                    sep = f"{C.GRAY}---{C.R}\n" if self.state else ""
+                    self._print(f"{sep}{C.CYAN}${C.R} {e['content']}")
                     self.state = "user"
                     self.thinking_task = asyncio.create_task(self._think_spin())
 
             case "intent":
-                # Cancel spinner for intent events
                 if self.thinking_task:
                     self.thinking_task.cancel()
                     self.thinking_task = None
-                    self._print("\r\033[K", end="", flush=True)
+                    await asyncio.sleep(0)
                 if e.get("content"):
                     self._print(f"{C.GRAY}intent: {e['content']}{C.R}")
 
@@ -155,13 +155,14 @@ class Renderer:
                 if self.thinking_task:
                     self.thinking_task.cancel()
                     self.thinking_task = None
-                    self._print("\r\033[K", end="", flush=True)
+                    await asyncio.sleep(0)
                 if e["content"] and e["content"].strip():
-                    if self.state != "think":
-                        self._newline()
+                    if self.state not in ("think", "result"):
                         self._print(f"{C.GRAY}~{C.R} ", end="", flush=True)
                         self.state = "think"
                         self.first_chunk = True
+                    elif self.state == "result":
+                        return
                     content = e["content"].lstrip() if self.first_chunk else e["content"]
                     if self.first_chunk:
                         self._print(f"{C.GRAY}{content}{C.R}", end="", flush=True)
@@ -170,13 +171,10 @@ class Renderer:
                         self._print(f"{C.GRAY}{content}{C.R}", end="", flush=True)
 
             case "respond":
-                # Don't cancel spinner immediately - wait for real content
-                has_real_content = e["content"] and e["content"].strip()
-
-                if has_real_content and self.thinking_task:
+                if self.thinking_task:
                     self.thinking_task.cancel()
                     self.thinking_task = None
-                    self._print("\r\033[K", end="", flush=True)
+                    await asyncio.sleep(0)
 
                 if not e["content"]:
                     return
@@ -186,15 +184,13 @@ class Renderer:
                 # State transition: delay until we have real content
                 if self.state != "respond":
                     if content.strip():
-                        # Only add newline if we're not at the start of a new line
                         if not self._last_char_newline:
                             self._newline()
                         self._print(f"{C.MAGENTA}›{C.R} ", end="", flush=True)
                         self.state = "respond"
-                        self.first_chunk = False
-                        self._print(content.lstrip(), end="", flush=True)
+                        # Strip all leading whitespace including newlines from first token
+                        self._print(render_markdown(content.strip()), end="", flush=True)
                     else:
-                        # Buffer whitespace until real content
                         self.newline_buffer += content
                     return
 
@@ -202,9 +198,9 @@ class Renderer:
                 if content.strip():
                     # Real content - flush buffer then print
                     if self.newline_buffer:
-                        self._print(self.newline_buffer, end="", flush=True)
+                        self._print(render_markdown(self.newline_buffer), end="", flush=True)
                         self.newline_buffer = ""
-                    self._print(content, end="", flush=True)
+                    self._print(render_markdown(content), end="", flush=True)
                 else:
                     # Trailing whitespace - buffer it
                     self.newline_buffer += content
@@ -215,7 +211,7 @@ class Renderer:
                 if self.thinking_task:
                     self.thinking_task.cancel()
                     self.thinking_task = None
-                    self._print("\r\033[K", end="", flush=True)
+                    await asyncio.sleep(0)
 
                 self.newline_buffer = ""
                 self._newline()
@@ -226,53 +222,34 @@ class Renderer:
                     call = parse_tool_call(e.get("content", ""))
                     key = self._call_key(call)
                     self.pending_calls[key] = call
-                    self._print(
-                        f"{C.GRAY}○{C.R} {C.GRAY}{format_call(call)}{C.R}", end="", flush=True
-                    )
+                    self.call_start_times[key] = time.time()
+                    self._print(f"\r\033[K{C.GRAY}○ {format_call(call)}{C.R}", end="", flush=True)
                 except Exception:
                     if self.pending_calls:
                         last_key = list(self.pending_calls.keys())[-1]
                         del self.pending_calls[last_key]
 
-            case "execute":
-                if self.pending_calls:
-                    # Spin for the last call added
-                    last_key = list(self.pending_calls.keys())[-1]
-                    self.call_start_times[last_key] = time.time()
-                    self.spinner_tasks[last_key] = asyncio.create_task(
-                        self._spin(self.pending_calls[last_key])
-                    )
-
             case "result":
-                # Cancel all spinner tasks
-                for task in self.spinner_tasks.values():
-                    task.cancel()
-                self.spinner_tasks.clear()
-
-                # Handle the result - try to match it with a pending call
                 call_key = None
                 if self.pending_calls:
-                    # If we have pending calls, assume this result is for the most recent one
                     call_key = list(self.pending_calls.keys())[-1]
                     call = self.pending_calls.pop(call_key)
                     if start := self.call_start_times.pop(call_key, None):
                         time.time() - start
 
                     payload = e.get("payload", {})
-                    outcome = format_result(call, payload)
                     is_error = payload.get("error", False)
                     symbol = f"{C.RED}✗{C.R}" if is_error else f"{C.GREEN}●{C.R}"
-                    self._print(f"\r\033[K{symbol} {outcome}", flush=True)
+                    self._print(f"\r\033[K{symbol} {format_result(call, payload)}")
 
                     content = payload.get("content")
                     if content and call.name == "edit":
                         for line in render_diff(content):
                             self._print(line)
-                    # Removed the else branch that printed a newline
 
-                    self.state = None
+                    self.state = "result"
+                    self.thinking_task = asyncio.create_task(self._think_spin())
                 else:
-                    # No pending calls, display result directly
                     payload = e.get("payload", {})
                     outcome = tool_outcome(payload)
                     if outcome:
@@ -281,8 +258,9 @@ class Renderer:
                         message = payload.get("message", "ok")
                     is_error = e.get("payload", {}).get("error")
                     symbol = f"{C.RED}✗{C.R}" if is_error else f"{C.GREEN}●{C.R}"
-                    self._print(f"\r\033[K{symbol} {message}\n", end="", flush=True)
-                    self.state = None
+                    self._print(f"\r\033[K{symbol} {message}")
+                    self.state = "result"
+                    self.thinking_task = asyncio.create_task(self._think_spin())
 
             case "end":
                 # Flush buffered results before ending
@@ -301,6 +279,22 @@ class Renderer:
             case "interrupt":
                 self._print(f"{C.YELLOW}⚠{C.R} Interrupted")
 
+    async def _spinner(self):
+        if os.getenv("CI") == "true":
+            return
+
+        frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        i = 0
+        start = time.time()
+        try:
+            while True:
+                elapsed = int(time.time() - start)
+                self._print(f"\r{C.GRAY}{frames[i]} loading ({elapsed}s){C.R}", end="", flush=True)
+                i = (i + 1) % len(frames)
+                await asyncio.sleep(0.016)
+        except asyncio.CancelledError:
+            self._print("\r\033[K", end="", flush=True)
+
     async def _think_spin(self):
         if os.getenv("CI") == "true":
             return
@@ -315,27 +309,9 @@ class Renderer:
                 i = (i + 1) % len(frames)
                 await asyncio.sleep(0.016)
         except asyncio.CancelledError:
-            pass
-
-    async def _spin(self, call):
-        if os.getenv("CI") == "true":
-            return
-
-        frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-        label = format_call(call).replace(": ...", "")
-        i = 0
-        start = time.time()
-        try:
-            while True:
-                elapsed = int(time.time() - start)
-                self._print(f"\r{C.CYAN}{frames[i]} {label} ({elapsed}s){C.R}", end="", flush=True)
-                i = (i + 1) % len(frames)
-                await asyncio.sleep(0.016)
-        except asyncio.CancelledError:
-            pass
+            self._print("\r\033[K", end="", flush=True)
 
     def _print(self, *args, **kwargs):
-        # Determine the actual 'end' character that print() will use
         actual_end = kwargs.get("end", "\n")
         print(*args, **kwargs)
         self._last_char_newline = actual_end == "\n"

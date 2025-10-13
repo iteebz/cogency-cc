@@ -4,8 +4,8 @@ import sqlite3
 import time
 from typing import Any
 
-from cogency.lib.ids import uuid7
 from cogency.lib.resilience import retry
+from cogency.lib.uuid7 import uuid7
 
 from .db import DB
 

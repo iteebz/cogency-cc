@@ -71,6 +71,7 @@ async def run_agent(
 
     storage = SQLite()
     msgs = await storage.load_messages(conv_id, "cogency")
+    latest_metric = await storage.load_latest_metric(conv_id)
 
     llm = agent.config.llm if hasattr(agent, "config") else None
     renderer = Renderer(
@@ -79,6 +80,7 @@ async def run_agent(
         conv_id=conv_id,
         config=config,
         evo_mode=evo_mode,
+        latest_metric=latest_metric,
     )
     stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=True)
     try:

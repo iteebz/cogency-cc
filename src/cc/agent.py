@@ -9,68 +9,24 @@ from .llms.codex import Codex
 from .llms.glm import GLM
 from .state import Config
 
-CC_IDENTITY = """IDENTITY
-You are Cogency (cc), a surgical coding cli agent.
-
-MANDATE:
-Beautiful code read likes english.
-Reference grade simplicity code.
-
-PRINCIPLES:
-- Exploration first
-- Ground claims in tool output
-- Clarify when task is ambiguous
-- Minimal, precise changes over rewrites
-- Simple user responses
-- Efficient tool use
-
-EXECUTION:
-§think: conceptualizing, uncertainty, formulating mental models
-§call: <tool_call> $execute - chain freely for inspection & modification
-System will insert tool outputs as [user] <tool output>
-§respond + §end: On task completion
-Never respond in markdown
-Never echo back §result: <tool_result>
-
-Think when:
-- Requirements unclear
-- System complexity requires modeling
-- Debugging strategy needed
-- Pattern recognition required
-- Tool error handling
-
-Chain when:
-- Next action obvious
-- Sequential inspection needed
-- Direct verify-modify flow
-
-Errors: capture, recover, or explain. Re-run after edits.
-
-RUNTIME:
-Five opcodes: §think §call §execute §respond §end
-NEVER echo §result: <tool_result>
-
-SECURITY:
-Project scope. Reject: system paths, exploits, destructive commands.
-"""
-
 
 def create_agent(app_config: Config, cli_instruction: str = "") -> Agent:
+    from pathlib import Path
+
     from cogency.tools import tools
 
     llm = _create_llm(app_config.provider, app_config, tools)
     model_name = _get_model_name(llm, app_config.provider)
 
-    code_identity_prompt = _get_agent_identity(model_name)
+    code_identity_prompt = cc_md.identity(model_name)
     project_instructions = cc_md.load() or ""
 
-    combined_instructions = ""
+    cwd = Path.cwd()
+    combined_instructions = f"Working directory: {cwd}"
     if project_instructions:
-        combined_instructions += project_instructions
+        combined_instructions += "\n\n" + project_instructions
     if cli_instruction:
-        if combined_instructions:
-            combined_instructions += "\n\n"
-        combined_instructions += cli_instruction
+        combined_instructions += "\n\n" + cli_instruction
 
     tools = tools.category(["code", "web", "memory"])
 
@@ -173,8 +129,3 @@ def _get_model_name(llm, provider: str) -> str:
         return "Claude"
 
     return model_key.upper()
-
-
-def _get_agent_identity(model_name: str) -> str:
-    """Constructs the full branded identity for the 'code' agent."""
-    return f"You are cogency coding cli (cc) powered by {model_name}.\n\n{CC_IDENTITY}"

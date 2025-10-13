@@ -4,7 +4,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cc.agent import CC_IDENTITY, _create_llm, _get_model_name, create_agent
+from cc.agent import _create_llm, _get_model_name, create_agent
+from cc.cc_md import CC_IDENTITY
 from cc.state import Config
 
 
@@ -44,7 +45,7 @@ def test_create_agent_with_default_config():
             assert call_kwargs["max_iterations"] == 42
             assert call_kwargs["profile"] is True
             assert call_kwargs["mode"] == "replay"
-            assert "You are cogency coding cli (cc) powered by GPT-4" in call_kwargs["identity"]
+            assert "Cogency coding cli (cc) powered by GPT-4" in call_kwargs["identity"]
             assert "Help with coding" in call_kwargs["instructions"]
             assert "--- User .cogency/cc.md ---" in call_kwargs["instructions"]
 
@@ -72,7 +73,7 @@ def test_create_agent_with_cli_instruction():
 
         call_kwargs = mock_agent_class.call_args[1]
         assert call_kwargs["profile"] is False
-        assert "You are cogency coding cli (cc) powered by GLM" in call_kwargs["identity"]
+        assert "Cogency coding cli (cc) powered by GLM" in call_kwargs["identity"]
         assert "fix this bug" in call_kwargs["instructions"]
         assert "Project instructions" in call_kwargs["instructions"]
         assert "--- User .cogency/cc.md ---" in call_kwargs["instructions"]
@@ -141,18 +142,21 @@ def test_security_boundary_enforced():
         # Verify security boundary
         call_args = mock_agent.call_args
         assert call_args[1]["security"].access == "project"
-        assert call_args[1]["instructions"] == ""
-        assert "You are cogency coding cli (cc) powered by OPENAI" in call_args[1]["identity"]
+        assert "Working directory:" in call_args[1]["instructions"]
+        assert "Cogency coding cli (cc) powered by OPENAI" in call_args[1]["identity"]
 
 
 def test_coding_structure():
     """Test that CODE contains required elements."""
     coding_identity = CC_IDENTITY
-    assert "You are Cogency (cc), a surgical coding cli agent." in coding_identity
+    assert "Surgical coding cli agent" in coding_identity
+    assert "MANDATE" not in coding_identity
     assert "PRINCIPLES" in coding_identity
     assert "EXECUTION" in coding_identity
-    assert "RUNTIME" in coding_identity
+    assert "RUNTIME" not in coding_identity
+    assert "SECURITY" not in coding_identity
 
     # Verify key principles are present
-    assert "- Exploration first" in coding_identity
+    assert "- Explore before acting" in coding_identity
     assert "- Ground claims in tool output" in coding_identity
+    assert "- Minimal edits over rewrites" in coding_identity
