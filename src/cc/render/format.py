@@ -69,6 +69,16 @@ def tool_outcome(payload: dict) -> str:
     if m := re.match(r"Found (\d+) (matches|results)", outcome):
         return f"{m.group(1)} {m.group(2)}"
 
+    # Shell command exit status
+    if m := re.match(r"Command failed \(exit (\d+)\): (.+)", outcome):
+        return f"exit {m.group(1)}"
+
+    if m := re.match(r"Command timed out after (\d+) seconds", outcome):
+        return "timeout"
+
+    if m := re.match(r"Command not found: (.+)", outcome):
+        return "not found"
+
     return outcome
 
 

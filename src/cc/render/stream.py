@@ -17,6 +17,7 @@ import time
 from .color import C
 from .diff import render_diff
 from .format import format_call, format_result, tool_outcome
+from .shell import format_shell_output
 
 
 def render_markdown(text: str) -> str:
@@ -243,6 +244,17 @@ class Renderer:
                     if content and call.name == "edit":
                         for line in render_diff(content):
                             self._print(line)
+                    elif content and call.name == "shell":
+                        # Extract exit code from outcome if available
+                        exit_code = 0
+                        outcome = payload.get("outcome", "")
+                        if m := re.search(r"exit (\d+)", outcome):
+                            exit_code = int(m.group(1))
+
+                        # Format shell output with appropriate styling
+                        formatted_output = format_shell_output(content, exit_code)
+                        for line in formatted_output.split("\n"):
+                            self._print(line)
 
                     self.state = "result"
                     self.thinking_task = asyncio.create_task(self._think_spin())
@@ -327,8 +339,8 @@ class Renderer:
 
     def _flush_respond_buffer(self):
         if self.respond_buffer:
-            # Trim leading/trailing newlines from the buffered content
-            trimmed_content = self.respond_buffer.strip("\n")
+            # Only trim leading newlines, preserve trailing newlines
+            trimmed_content = self.respond_buffer.lstrip("\n")
             self._print(render_markdown(trimmed_content), end="", flush=True)
             self.respond_buffer = ""
 

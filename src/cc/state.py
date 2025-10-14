@@ -8,8 +8,8 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from cogency.lib.rotation import get_api_key as rotated_api_key
-from cogency.lib.rotation import load_keys as rotated_keys
+from cogency.lib.llms.rotation import get_api_key as rotated_api_key
+from cogency.lib.llms.rotation import load_keys as rotated_keys
 from cogency.lib.uuid7 import uuid7
 
 

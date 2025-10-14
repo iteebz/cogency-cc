@@ -5,8 +5,8 @@ from collections.abc import AsyncGenerator
 import aiohttp
 from cogency.core.protocols import LLM
 from cogency.lib.llms.interrupt import interruptible
+from cogency.lib.llms.rotation import with_rotation
 from cogency.lib.logger import logger
-from cogency.lib.rotation import with_rotation
 
 
 class GLM(LLM):

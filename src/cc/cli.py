@@ -73,7 +73,7 @@ async def run_agent(
     msgs = await storage.load_messages(conv_id, "cogency")
     latest_metric = await storage.load_latest_metric(conv_id)
 
-    llm = agent.config.llm if hasattr(agent, "config") else None
+    llm = agent.config.llm
     renderer = Renderer(
         messages=msgs,
         llm=llm,
@@ -88,10 +88,9 @@ async def run_agent(
     finally:
         if stream and hasattr(stream, "aclose"):
             await stream.aclose()
-        if hasattr(agent, "config") and hasattr(agent.config, "llm"):
-            llm = agent.config.llm
-            if llm and hasattr(llm, "close"):
-                await llm.close()
+        llm = agent.config.llm
+        if llm and hasattr(llm, "close"):
+            await llm.close()
 
 
 app = typer.Typer(

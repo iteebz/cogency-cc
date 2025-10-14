@@ -2,7 +2,7 @@ import json
 from collections.abc import AsyncGenerator
 
 from cogency.core.protocols import LLM
-from cogency.lib.rotation import get_api_key, with_rotation
+from cogency.lib.llms.rotation import get_api_key, with_rotation
 
 
 class Codex(LLM):
