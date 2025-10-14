@@ -3,7 +3,7 @@
 import json
 
 import typer
-from cogency.lib.storage import SQLite
+from cogency.lib.sqlite import SQLite
 
 from .conversations import get_last_conversation
 from .lib.fs import root

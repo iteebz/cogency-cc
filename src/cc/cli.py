@@ -67,7 +67,7 @@ async def run_agent(
     evo_mode: bool = False,
     config=None,
 ):
-    from cogency.lib.storage import SQLite
+    from cogency.lib.sqlite import SQLite
 
     storage = SQLite()
     msgs = await storage.load_messages(conv_id, "cogency")

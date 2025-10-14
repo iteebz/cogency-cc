@@ -3,7 +3,7 @@
 import time
 from pathlib import Path
 
-from cogency.lib.storage import DB
+from cogency.lib.sqlite import DB
 
 
 async def list_conversations(base_dir: str = None, limit: int = 10) -> list[dict]:

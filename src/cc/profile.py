@@ -3,7 +3,7 @@
 import json
 
 import typer
-from cogency.lib.storage import DB, SQLite
+from cogency.lib.sqlite import DB, SQLite
 
 from .render.color import C
 from .state import Config

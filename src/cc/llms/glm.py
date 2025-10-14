@@ -60,12 +60,12 @@ class GLM(LLM):
                     result = await response.json()
                     return result["choices"][0]["message"]["content"]
 
-            except asyncio.TimeoutError:
+            except asyncio.TimeoutError as e:
                 logger.error("GLM API request timed out")
-                raise RuntimeError("GLM API request timed out") from None
-            except aiohttp.ServerDisconnectedError:
+                raise RuntimeError("GLM API request timed out") from e
+            except aiohttp.ServerDisconnectedError as e:
                 await self.close()
-                raise RuntimeError("Server disconnected, session reset") from None
+                raise RuntimeError("Server disconnected, session reset") from e
             except Exception as e:
                 logger.error(f"GLM generate failed: {str(e)}")
                 raise RuntimeError(f"GLM generate error: {str(e)}") from e
@@ -157,10 +157,10 @@ class GLM(LLM):
                 logger.error(f"GLM API stream timed out: {e}")
                 # Add more debugging info
                 logger.error("Timeout settings: total=300s, sock_read=60s, connect=30s")
-                raise RuntimeError("GLM API stream timed out") from None
-            except aiohttp.ServerDisconnectedError:
+                raise RuntimeError("GLM API stream timed out") from e
+            except aiohttp.ServerDisconnectedError as e:
                 await self.close()
-                raise RuntimeError("Server disconnected, session reset") from None
+                raise RuntimeError("Server disconnected, session reset") from e
             except Exception as e:
                 logger.error(f"GLM streaming failed: {str(e)}")
                 raise RuntimeError(f"GLM streaming error: {str(e)}") from e

@@ -77,6 +77,8 @@ class Renderer:
         self.turn_tools = 0
         self.call_start_times = {}
         self.newline_buffer = ""
+        self.response_started_this_turn = False
+        self.respond_buffer = ""  # Added this line
         self._last_char_newline = True  # New attribute
 
     async def render_stream(self, stream):
@@ -98,6 +100,8 @@ class Renderer:
             logger.error(f"Stream error: {e}")
             print(f"\n{C.RED}✗ Stream error: {e}{C.R}")
             raise
+        finally:
+            self._flush_respond_buffer()
 
     def _render_header(self):
         parts = []
@@ -135,8 +139,13 @@ class Renderer:
             self._print(f"{C.GRAY}{' · '.join(parts)}{C.R}")
 
     async def _render_event(self, e):
+        # Flush respond buffer if the new event is not a respond event
+        if e["type"] != "respond":
+            self._flush_respond_buffer()
+
         match e["type"]:
             case "user":
+                self.response_started_this_turn = False
                 if e["content"]:
                     sep = f"{C.GRAY}---{C.R}\n" if self.state else ""
                     self._print(f"{sep}{C.CYAN}${C.R} {e['content']}")
@@ -176,36 +185,24 @@ class Renderer:
                     self.thinking_task = None
                     await asyncio.sleep(0)
 
-                if not e["content"]:
+                if not e["content"].strip():
                     return
 
                 content = e["content"]
 
-                # State transition: delay until we have real content
-                if self.state != "respond":
-                    if content.strip():
-                        if not self._last_char_newline:
-                            self._newline()
-                        self._print(f"{C.MAGENTA}›{C.R} ", end="", flush=True)
-                        self.state = "respond"
-                        # Strip all leading whitespace including newlines from first token
-                        self._print(render_markdown(content.strip()), end="", flush=True)
-                    else:
-                        self.newline_buffer += content
-                    return
+                if not self.response_started_this_turn:
+                    if self.state == "think" and not self._last_char_newline:
+                        self._newline(force=True)
+                    elif not self._last_char_newline:
+                        self._newline()
+                    self._print(f"{C.MAGENTA}›{C.R} ", end="", flush=True)
+                    self.state = "respond"
+                    self.response_started_this_turn = True
 
-                # Already in respond state
-                if content.strip():
-                    # Real content - flush buffer then print
-                    if self.newline_buffer:
-                        self._print(render_markdown(self.newline_buffer), end="", flush=True)
-                        self.newline_buffer = ""
-                    self._print(render_markdown(content), end="", flush=True)
-                else:
-                    # Trailing whitespace - buffer it
-                    self.newline_buffer += content
+                self.respond_buffer += content
 
             case "call":
+                self.response_started_this_turn = False
                 from cogency.tools.parse import parse_tool_call
 
                 if self.thinking_task:
@@ -263,6 +260,7 @@ class Renderer:
                     self.thinking_task = asyncio.create_task(self._think_spin())
 
             case "end":
+                self.response_started_this_turn = False
                 # Flush buffered results before ending
                 if self.pending_calls:
                     for key in list(self.pending_calls.keys()):
@@ -317,13 +315,22 @@ class Renderer:
         self._last_char_newline = actual_end == "\n"
 
     def _newline(self, force: bool = False):
-        # Only add newline if not transitioning to respond state
-        if (force or self.state in ("think", "respond")) and not self._last_char_newline:
+        # Only add newline if not transitioning to respond state or if there's buffered content
+        if (
+            force or self.state not in ("respond", "think") or self.newline_buffer
+        ) and not self._last_char_newline:
             self._print()
 
     def _call_key(self, call):
         # Return a hashable key for the call to distinguish concurrent calls
         return f"{call.name}::{str(call.args)}"
+
+    def _flush_respond_buffer(self):
+        if self.respond_buffer:
+            # Trim leading/trailing newlines from the buffered content
+            trimmed_content = self.respond_buffer.strip("\n")
+            self._print(render_markdown(trimmed_content), end="", flush=True)
+            self.respond_buffer = ""
 
     async def _finalize(self):
         if not self.evo_mode:
