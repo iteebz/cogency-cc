@@ -1,13 +1,12 @@
 """Pytest configuration and fixtures for cogency-cc testing."""
 
 import os
-import subprocess
 from collections.abc import AsyncGenerator
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from cogency.core.protocols import LLM
+from typer.testing import CliRunner
 
 
 class MockLLM(LLM):
@@ -71,6 +70,12 @@ class MockLLM(LLM):
 
 
 @pytest.fixture
+def cli_runner():
+    """Fixture providing a typer CliRunner for testing."""
+    return CliRunner()
+
+
+@pytest.fixture
 def mock_llm():
     """Fixture providing a mock LLM for testing."""
     return MockLLM()
@@ -89,45 +94,6 @@ def mock_api_keys():
         },
     ):
         yield
-
-
-@pytest.fixture
-def cli_runner(tmp_path, monkeypatch):
-    # Use a consistent .cogency directory for the duration of a test
-    cogency_dir = tmp_path / ".cogency"
-    cogency_dir.mkdir(exist_ok=True)
-
-    env = os.environ.copy()
-    env["COGENCY_CONFIG_DIR"] = str(tmp_path)
-    env["CI"] = "true"  # Disable animations in tests
-
-    env["PYTHONUNBUFFERED"] = "1"
-    env["PYTHONPATH"] = (
-        f"{str(Path(__file__).parent.parent / 'src')}:{str(Path(__file__).parent.parent)}:."
-    )
-
-    def _run_cli(command_args: list[str], expected_exit_code: int = 0):
-        # Mock input to automatically say 'y' for overwrite prompts
-        monkeypatch.setattr("builtins.input", lambda _: "y")
-        cmd = [
-            "python",
-            "-c",
-            f"import sys; sys.path.insert(0, '{Path(__file__).parent.parent / 'src'}'); import cc.__main__; cc.__main__.main()",
-        ] + command_args
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            env=env,
-            cwd=Path(__file__).parent.parent,  # Go up to cogency-cc root
-        )
-        print(f"\nCommand: {' '.join(cmd)}")
-        print(f"Stdout: {result.stdout}")
-        print(f"Stderr: {result.stderr}")
-        assert result.returncode == expected_exit_code
-        return result
-
-    return _run_cli
 
 
 @pytest.fixture

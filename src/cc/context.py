@@ -3,7 +3,6 @@
 import json
 
 import typer
-from cogency.lib.sqlite import SQLite
 
 from .conversations import get_last_conversation
 from .lib.fs import root
@@ -26,8 +25,10 @@ async def show_context(config: Config, snapshots: Snapshots):
         typer.echo("No conversation found")
         return
 
-    storage = SQLite()
-    msgs = await storage.load_messages(conv_id, "cogency")
+    from .storage import storage as get_storage
+
+    storage = get_storage(config)
+    msgs = await storage.load_messages(conv_id, config.user_id)
 
     if not msgs:
         typer.echo("No messages in conversation")

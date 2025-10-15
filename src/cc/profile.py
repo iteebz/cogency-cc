@@ -3,7 +3,7 @@
 import json
 
 import typer
-from cogency.lib.sqlite import DB, SQLite
+from cogency.lib.sqlite import DB
 
 from .render.color import C
 from .state import Config
@@ -11,7 +11,9 @@ from .storage import Snapshots
 
 
 async def show_profile(config: Config, snapshots: Snapshots):
-    storage = SQLite()
+    from .storage import storage as get_storage
+
+    storage = get_storage(config)
 
     user_id = config.user_id
     profile = await storage.load_profile(user_id)
@@ -37,7 +39,9 @@ async def show_profile(config: Config, snapshots: Snapshots):
 
 
 async def nuke_profile(config: Config, snapshots: Snapshots):
-    storage = SQLite()
+    from .storage import storage as get_storage
+
+    storage = get_storage(config)
 
     user_id = config.user_id
     deleted = await storage.delete_profile(user_id)
@@ -49,7 +53,9 @@ async def nuke_profile(config: Config, snapshots: Snapshots):
 
 
 def _get_profile_history(user_id: str) -> list[dict]:
-    db_path = ".cogency/store.db"
+    from .state import _default_config_dir
+
+    db_path = str(_default_config_dir() / "store.db")
     with DB.connect(db_path) as db:
         rows = db.execute(
             "SELECT version, char_count, created_at FROM profiles WHERE user_id = ? ORDER BY version",

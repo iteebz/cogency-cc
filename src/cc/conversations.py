@@ -6,64 +6,58 @@ from pathlib import Path
 from cogency.lib.sqlite import DB
 
 
+def _query_conversations(db_path: Path, limit: int) -> list[dict]:
+    with DB.connect(db_path) as db:
+        cursor = db.execute(
+            """
+            SELECT
+                c1.conversation_id,
+                c1.user_id,
+                c1.content as first_message,
+                c1.timestamp,
+                COUNT(c2.timestamp) as message_count
+            FROM messages c1
+            LEFT JOIN messages c2 ON c1.conversation_id = c2.conversation_id
+            WHERE c1.type = 'user' AND c1.timestamp = (
+                SELECT MIN(timestamp)
+                FROM messages
+                WHERE conversation_id = c1.conversation_id AND type = 'user'
+            )
+            GROUP BY c1.conversation_id, c1.user_id, c1.content, c1.timestamp
+            ORDER BY c1.timestamp DESC
+            LIMIT ?
+        """,
+            (limit,),
+        )
+
+        results = []
+        for conversation_id, user_id, first_msg, timestamp, count in cursor.fetchall():
+            preview = first_msg[:50] + "..." if len(first_msg) > 50 else first_msg
+            results.append(
+                {
+                    "conversation_id": conversation_id,
+                    "user_id": user_id,
+                    "preview": preview,
+                    "timestamp": timestamp,
+                    "message_count": count,
+                    "time_ago": _format_time_ago(timestamp),
+                }
+            )
+        return results
+
+
 async def list_conversations(base_dir: str = None, limit: int = 10) -> list[dict]:
     """List recent conversations with first message preview."""
-    if base_dir:
-        db_path = Path(base_dir) / ".cogency" / "store.db"
-    else:
-        db_path = Path(".cogency/store.db")
+    db_path = Path(base_dir) / ".cogency" / "store.db" if base_dir else Path(".cogency/store.db")
 
     if not db_path.exists():
         return []
 
-    def _sync_query():
-        with DB.connect(db_path) as db:
-            # Get first user message for each conversation
-            cursor = db.execute(
-                """
-                SELECT
-                    c1.conversation_id,
-                    c1.user_id,
-                    c1.content as first_message,
-                    c1.timestamp,
-                    COUNT(c2.timestamp) as message_count
-                FROM messages c1
-                LEFT JOIN messages c2 ON c1.conversation_id = c2.conversation_id
-                WHERE c1.type = 'user' AND c1.timestamp = (
-                    SELECT MIN(timestamp)
-                    FROM messages
-                    WHERE conversation_id = c1.conversation_id AND type = 'user'
-                )
-                GROUP BY c1.conversation_id, c1.user_id, c1.content, c1.timestamp
-                ORDER BY c1.timestamp DESC
-                LIMIT ?
-            """,
-                (limit,),
-            )
-
-            results = []
-            for row in cursor.fetchall():
-                conversation_id, user_id, first_msg, timestamp, count = row
-
-                # Truncate first message for display
-                preview = first_msg[:50] + "..." if len(first_msg) > 50 else first_msg
-
-                results.append(
-                    {
-                        "conversation_id": conversation_id,
-                        "user_id": user_id,
-                        "preview": preview,
-                        "timestamp": timestamp,
-                        "message_count": count,
-                        "time_ago": _format_time_ago(timestamp),
-                    }
-                )
-
-            return results
-
     import asyncio
 
-    return await asyncio.get_event_loop().run_in_executor(None, _sync_query)
+    return await asyncio.get_event_loop().run_in_executor(
+        None, _query_conversations, db_path, limit
+    )
 
 
 def get_last_conversation(base_dir: str = None) -> str | None:

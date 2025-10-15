@@ -91,4 +91,4 @@ markers = [
 ]
 
 [tool.pytest_asyncio]
-asyncio_mode = "auto"
+asyncio_mode = "strict"

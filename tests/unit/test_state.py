@@ -1,5 +1,6 @@
 """Test configuration state management."""
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,7 +19,7 @@ def test_config_initialization_defaults():
     config = Config()
     assert config.provider == "glm"
     assert config.model is None
-    assert config.user_id == "new_user"
+    assert config.user_id == "cc_user"
 
 
 def test_config_post_init_sets_correct_path(temp_config_dir: Path):
@@ -57,24 +58,16 @@ def test_load_from_non_existent_file(temp_config_dir: Path):
     assert config.model is None
 
 
-def test_load_from_corrupted_json(temp_config_dir: Path, capsys):
-    """Test that loading from a corrupted JSON file handles the error gracefully."""
+def test_load_from_corrupted_json(temp_config_dir: Path):
+    """Test that loading from a corrupted JSON file raises a JSONDecodeError."""
     config_dir = temp_config_dir
     config_file = config_dir / "cc.json"
     config_dir.mkdir()
     config_file.write_text("this is not valid json")
 
     config = Config(config_dir=config_dir)
-    config.load()
-
-    # Assert that the config retains its default values
-    assert config.provider == "glm"
-    assert config.model is None
-
-    # Assert that a warning was printed to stderr
-    stderr = capsys.readouterr().err
-    assert "Warning: Could not load config" in stderr
-    assert "Expecting value: line 1 column 1 (char 0)" in stderr
+    with pytest.raises(json.JSONDecodeError):
+        config.load()
 
 
 def test_update_method_changes_and_saves(temp_config_dir: Path):

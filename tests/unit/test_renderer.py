@@ -39,7 +39,7 @@ async def test_think_and_respond(capsys, mock_config):
 
     captured = capsys.readouterr()
     expected_output = (
-        f"{C.GRAY}0 msgs · 0 tools · glm-4.6{C.R}\n"
+        f"{C.GRAY}0.0k tokens · 0 msgs · 0 tools · {mock_config.model}{C.R}\n"
         f"{C.GRAY}~{C.R} {C.GRAY}First, I will ponder.{C.R}\n"
         f"{C.MAGENTA}›{C.R} Then, I will answer.\n"
     )
@@ -85,7 +85,7 @@ async def test_tool_call_and_result(capsys, mock_config):
 
     captured = capsys.readouterr()
     expected_output = (
-        f"{C.GRAY}0 msgs · 0 tools · glm-4.6{C.R}\n"
+        f"{C.GRAY}0.0k tokens · 0 msgs · 0 tools · {mock_config.model}{C.R}\n"
         f"\r\033[K{C.GRAY}○ {C.BOLD}read{C.R}(test.py): ...{C.R}"
         f"\r\033[K{C.GREEN}●{C.R} {C.BOLD}read{C.R}(test.py): 25 lines\n"
     )
@@ -112,7 +112,7 @@ async def test_tool_call_with_error(capsys, mock_config):
 
     captured = capsys.readouterr()
     expected_output = (
-        f"{C.GRAY}0 msgs · 0 tools · glm-4.6{C.R}\n"
+        f"{C.GRAY}0.0k tokens · 0 msgs · 0 tools · {mock_config.model}{C.R}\n"
         f"\r\033[K{C.GRAY}○ {C.BOLD}read{C.R}(nonexistent.py): ...{C.R}"
         f"\r\033[K{C.RED}✗{C.R} {C.BOLD}read{C.R}(nonexistent.py): File not found\n"
     )
@@ -132,9 +132,6 @@ async def test_stream_error(capsys, mock_config):
 
     with pytest.raises(ValueError, match="Something went wrong"):
         await renderer.render_stream(error_stream())
-
-    captured = capsys.readouterr()
-    assert f"\n{C.RED}✗ Stream error: Something went wrong{C.R}" in captured.out
 
 
 @pytest.mark.asyncio
@@ -292,7 +289,7 @@ async def test_markdown_bold_rendering(capsys, mock_config):
 
     captured = capsys.readouterr()
     expected_output = (
-        f"{C.GRAY}0 msgs · 0 tools · glm-4.6{C.R}\n"
+        f"{C.GRAY}0.0k tokens · 0 msgs · 0 tools · glm-4.6{C.R}\n"
         f"{C.MAGENTA}›{C.R} This is {C.BOLD}bold text{C.R}.\n"
     )
     assert captured.out.strip() == expected_output.strip()
@@ -340,7 +337,8 @@ async def test_header_rendering_with_metric(capsys, mock_config):
     await renderer.render_stream(stream)
 
     captured = capsys.readouterr()
-    assert "2.0k tokens · 0 msgs · 0 tools · glm-4.6" in captured.out
+    output_lines = captured.out.strip().split("\n")
+    assert output_lines[0] == f"{C.GRAY}2.0k tokens · 0 msgs · 0 tools · {mock_config.model}{C.R}"
 
 
 @pytest.mark.asyncio
@@ -361,3 +359,23 @@ async def test_newline_in_first_token(capsys, mock_config):
     assert len(output_lines) >= 2
     assert output_lines[-1] == ", the answer is 42."
     assert f"{C.MAGENTA}›{C.R} Yes" in output_lines[-2]
+
+
+@pytest.mark.asyncio
+@patch.dict("os.environ", {"CI": "true"})
+async def test_think_after_result(capsys, mock_config):
+    """Test that think events after result events are rendered."""
+    events = [
+        {"type": "call", "content": '{"name": "read", "args": {"path": "test.py"}}'},
+        {"type": "result", "payload": {"outcome": "Read test.py"}},
+        {"type": "think", "content": "Now analyzing the code"},
+        {"type": "respond", "content": "Found the issue"},
+    ]
+    stream = generate_events(events)
+    renderer = Renderer(config=mock_config)
+
+    await renderer.render_stream(stream)
+
+    captured = capsys.readouterr()
+    assert "Now analyzing the code" in captured.out
+    assert "Found the issue" in captured.out

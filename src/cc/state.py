@@ -3,7 +3,6 @@
 import dataclasses
 import json
 import os
-import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -36,7 +35,7 @@ class Config:
 
     provider: str = "glm"
     model: str | None = None
-    user_id: str = "new_user"
+    user_id: str = "cc_user"
     conversation_id: str = field(default_factory=uuid7)
     api_keys: dict[str, str] = field(default_factory=dict)
     debug_mode: bool = False
@@ -65,18 +64,14 @@ class Config:
 
     def load(self) -> None:
         """Load configuration from file."""
-        if self.config_file.exists():
-            try:
-                with open(self.config_file, encoding="utf-8") as f:
-                    data = json.load(f)
-                    for key, value in data.items():
-                        if hasattr(self, key):
-                            setattr(self, key, value)
-            except (OSError, json.JSONDecodeError) as e:
-                print(
-                    f"Warning: Could not load config from {self.config_file}. Error: {e}. Using default settings.",
-                    file=sys.stderr,
-                )
+        if not self.config_file.exists():
+            return
+
+        with open(self.config_file, encoding="utf-8") as f:
+            data = json.load(f)
+            for key, value in data.items():
+                if hasattr(self, key):
+                    setattr(self, key, value)
 
     def save(self) -> None:
         """Save configuration to file."""
@@ -113,9 +108,12 @@ class Config:
 
     @classmethod
     def from_dict(cls, data: dict) -> "Config":
-        """Construct a Config object from a dictionary."""
-        # Filter out keys that are not part of the Config constructor
-        # This handles cases where the stored dict might have extra keys
         valid_keys = {f.name for f in dataclasses.fields(cls) if f.init}
         filtered_data = {k: v for k, v in data.items() if k in valid_keys}
         return cls(**filtered_data)
+
+    @classmethod
+    def load_or_default(cls, **kwargs) -> "Config":
+        config = cls(**kwargs)
+        config.load()
+        return config

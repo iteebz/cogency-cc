@@ -67,31 +67,38 @@ async def run_agent(
     evo_mode: bool = False,
     config=None,
 ):
-    from cogency.lib.sqlite import SQLite
+    from .storage import storage as get_storage
 
-    storage = SQLite()
-    msgs = await storage.load_messages(conv_id, "cogency")
+    storage = get_storage(config)
+    msgs = await storage.load_messages(conv_id, config.user_id)
     latest_metric = await storage.load_latest_metric(conv_id)
 
-    llm = agent.config.llm
     renderer = Renderer(
         messages=msgs,
-        llm=llm,
+        llm=agent.config.llm,
         conv_id=conv_id,
         config=config,
         evo_mode=evo_mode,
         latest_metric=latest_metric,
     )
-    generate = config and config.model and "codex" in config.model.lower()
-    stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=True, generate=generate)
+
+    is_codex = "codex" in (
+        agent.config.llm.http_model if hasattr(agent.config.llm, "http_model") else ""
+    )
+    stream = agent(
+        query=query,
+        user_id=config.user_id,
+        conversation_id=conv_id,
+        chunks=not is_codex,
+        generate=is_codex,
+    )
     try:
         await renderer.render_stream(stream)
     finally:
         if stream and hasattr(stream, "aclose"):
             await stream.aclose()
-        llm = agent.config.llm
-        if llm and hasattr(llm, "close"):
-            await llm.close()
+        if agent.config.llm and hasattr(agent.config.llm, "close"):
+            await agent.config.llm.close()
 
 
 app = typer.Typer(
@@ -152,8 +159,7 @@ def main(
         ),
     ] = None,
 ) -> None:
-    config = Config(user_id="cogency")
-    config.load()
+    config = Config.load_or_default()
     if debug is not None:
         config.debug_mode = debug
     if config.debug_mode:
@@ -161,7 +167,17 @@ def main(
 
         set_debug(True)
     apply_model_alias(config, model_alias)
-    ctx.obj = {"config": config, "snapshots": Snapshots()}
+
+    import sqlite3
+
+    try:
+        snapshots = Snapshots()
+    except (PermissionError, sqlite3.OperationalError):
+        typer.echo("Error: Cannot create or open database in the current directory.")
+        typer.echo("Please run from a directory where you have write permissions.")
+        raise typer.Exit(code=1) from None
+
+    ctx.obj = {"config": config, "snapshots": snapshots}
     ctx.obj["root_flags"] = {
         "new": new,
         "evo": evo,
@@ -172,6 +188,26 @@ def main(
     if ctx.invoked_subcommand is None and not ctx.args:  # no query provided, show help as usual
         typer.echo(ctx.get_help())
         raise typer.Exit(code=2)
+
+
+def _resolve_conversation_id(new: bool, conversation_id_arg: str | None) -> str:
+    if new:
+        return str(uuid.uuid4())
+    if conversation_id_arg:
+        return conversation_id_arg
+
+    project_root = root()
+    conv_id = None
+    if project_root:
+        conv_id = get_last_conversation(str(project_root))
+
+    if not conv_id:
+        conv_id = get_last_conversation()
+
+    if not conv_id:
+        conv_id = str(uuid.uuid4())
+
+    return conv_id
 
 
 @app.command("__default__", hidden=True)
@@ -236,14 +272,10 @@ def default_cmd(
 
     try:
         root_flags = ctx.obj.get("root_flags", {})
-        if not new and root_flags.get("new"):
-            new = True
-        if not evo and root_flags.get("evo"):
-            evo = True
-        if conversation_id_arg is None and root_flags.get("conversation_id"):
-            conversation_id_arg = root_flags["conversation_id"]
-        if not model_alias and root_flags.get("model_alias"):
-            model_alias = root_flags["model_alias"]
+        new = new or root_flags.get("new", False)
+        evo = evo or root_flags.get("evo", False)
+        conversation_id_arg = conversation_id_arg or root_flags.get("conversation_id")
+        model_alias = model_alias or root_flags.get("model_alias")
 
         apply_model_alias(config, model_alias)
         if save_config:
@@ -253,28 +285,13 @@ def default_cmd(
             parent = ctx.parent or ctx
             typer.echo(parent.get_help())
             raise typer.Exit()
-
-        resuming = False
-
+        current_conv_id = _resolve_conversation_id(new, conversation_id_arg)
         if new:
-            current_conv_id = str(uuid.uuid4())
             typer.echo(f"Starting new conversation with ID: {current_conv_id}")
-        elif conversation_id_arg:
-            current_conv_id = conversation_id_arg
-            resuming = True
-        else:
-            project_root = root()
-            current_conv_id = None
-            if project_root:
-                current_conv_id = get_last_conversation(str(project_root))
-            if not current_conv_id:
-                current_conv_id = get_last_conversation()
-            if current_conv_id:
-                resuming = True
-            else:
-                current_conv_id = str(uuid.uuid4())
 
         config.conversation_id = current_conv_id
+
+        resuming = (not new) and (current_conv_id != str(uuid.uuid4()))
 
         agent = create_agent(config, "")
         asyncio.run(run_agent(agent, query, current_conv_id, resuming, evo, config))
@@ -306,10 +323,7 @@ def set(
     )
 
 
-app.add_typer(session_app, name="session")
-app.command("nuke")(nuke_command)
-app.command("profile")(profile_command)
-app.command("context")(context_command)
-
-if __name__ == "__main__":
-    app()
+app.command(name="profile")(profile_command)
+app.command(name="nuke")(nuke_command)
+app.command(name="context")(context_command)
+app.add_typer(session_app)

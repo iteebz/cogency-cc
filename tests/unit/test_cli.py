@@ -14,9 +14,11 @@ def test_no_args_shows_help():
     assert "Usage: root" in result.output
 
 
+@patch("cc.cli.create_agent")
 @patch("cc.cli.run_agent")
-def test_query_invokes_agent(mock_run_agent):
+def test_query_invokes_agent(mock_run_agent, mock_create_agent):
     """Core Behavior: A simple query invokes the agent runner."""
+    mock_create_agent.return_value = MagicMock()
     runner = CliRunner()
     result = runner.invoke(cli, ["hello", "world"])
     assert result.exit_code == 0
@@ -26,9 +28,11 @@ def test_query_invokes_agent(mock_run_agent):
     assert args[1] == "hello world"  # query
 
 
+@patch("cc.cli.create_agent")
 @patch("cc.cli.run_agent")
-def test_literal_run_is_treated_as_query(mock_run_agent):
+def test_literal_run_is_treated_as_query(mock_run_agent, mock_create_agent):
     """Regression: The word 'run' should be treated as part of the query, not a subcommand."""
+    mock_create_agent.return_value = MagicMock()
     runner = CliRunner()
     runner.invoke(cli, ["run", "hello"])
 
@@ -37,9 +41,11 @@ def test_literal_run_is_treated_as_query(mock_run_agent):
     assert args[1] == "run hello"
 
 
+@patch("cc.cli.create_agent")
 @patch("cc.cli.run_agent")
-def test_run_new_flag_is_passed(mock_run_agent):
+def test_run_new_flag_is_passed(mock_run_agent, mock_create_agent):
     """Contract: Test that the --new flag is correctly passed to the agent runner."""
+    mock_create_agent.return_value = MagicMock()
     runner = CliRunner()
     runner.invoke(cli, ["--new", "test query"])
 
@@ -47,10 +53,12 @@ def test_run_new_flag_is_passed(mock_run_agent):
     assert args[3] is False  # resuming should be False
 
 
+@patch("cc.cli.create_agent")
 @patch("cc.cli.run_agent")
 @patch("cc.cli.uuid.uuid4")
-def test_run_new_generates_fresh_conversation(mock_uuid, mock_run_agent):
+def test_run_new_generates_fresh_conversation(mock_uuid, mock_run_agent, mock_create_agent):
     """Behavior: --new generates a fresh conversation ID and updates config."""
+    mock_create_agent.return_value = MagicMock()
     mock_uuid.return_value = uuid.UUID("12345678-1234-1234-1234-1234567890ab")
     runner = CliRunner()
     runner.invoke(cli, ["--new", "fresh start"])
