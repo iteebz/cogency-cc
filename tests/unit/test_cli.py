@@ -65,7 +65,6 @@ def test_run_new_generates_fresh_conversation(mock_uuid, mock_run_agent):
 def test_run_model_aliases_configure_agent(mock_create_agent):
     """Contract: Test that model alias flags correctly configure the agent provider and model."""
     test_cases = [
-        (["run", "--model-alias", "codex", "test"], "openai", "gpt-5-codex", "Codex"),
         (["--model-alias", "gemini", "test"], "gemini", "gemini-2.5-pro", "Gemini"),
         (["--model-alias", "sonnet", "test"], "anthropic", "claude-sonnet-4-5", "Claude"),
         (

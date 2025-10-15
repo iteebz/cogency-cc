@@ -82,7 +82,8 @@ async def run_agent(
         evo_mode=evo_mode,
         latest_metric=latest_metric,
     )
-    stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=True)
+    generate = config and config.model and "codex" in config.model.lower()
+    stream = agent(query=query, user_id="cogency", conversation_id=conv_id, chunks=True, generate=generate)
     try:
         await renderer.render_stream(stream)
     finally:

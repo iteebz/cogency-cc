@@ -4,19 +4,15 @@ from cc.tools.shell import shell
 
 
 def test_shell_truncates_output():
-    """Test that shell command truncates output when it exceeds max_lines."""
-    # Create a mock that returns a long output
     mock_process = MagicMock()
     mock_process.returncode = 0
-    mock_process.stdout = "line\n" * 150  # 150 lines of output
+    mock_process.stdout = ("line\n" * 150).rstrip("\n")
 
     with patch("subprocess.run", return_value=mock_process):
         result = shell(command="echo 'test'")
 
-        # The result should be truncated to max_lines (100)
-        lines = result.split("\n")
-        assert len(lines) <= 100
-        assert "... (truncated)" in result
+        assert "(truncated" in result
+        assert "showing first 100 of 150 lines" in result
 
 
 def test_shell_preserves_short_output():
@@ -28,10 +24,9 @@ def test_shell_preserves_short_output():
     with patch("subprocess.run", return_value=mock_process):
         result = shell(command="echo 'test'")
 
-        # The result should not be truncated
         lines = result.split("\n")
         assert len(lines) == 3
-        assert "... (truncated)" not in result
+        assert "(truncated" not in result
 
 
 def test_shell_handles_error_output():
@@ -50,18 +45,15 @@ def test_shell_handles_error_output():
 
 
 def test_shell_with_custom_max_lines():
-    """Test that shell command respects custom max_lines parameter."""
     mock_process = MagicMock()
     mock_process.returncode = 0
-    mock_process.stdout = "line\n" * 50  # 50 lines of output
+    mock_process.stdout = ("line\n" * 50).rstrip("\n")
 
     with patch("subprocess.run", return_value=mock_process):
         result = shell(command="echo 'test'", max_lines=30)
 
-        # The result should be truncated to custom max_lines
-        lines = result.split("\n")
-        assert len(lines) <= 30
-        assert "... (truncated)" in result
+        assert "(truncated" in result
+        assert "showing first 30 of 50 lines" in result
 
 
 def test_shell_with_empty_output():

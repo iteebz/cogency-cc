@@ -5,7 +5,6 @@ from cogency.lib.llms.gemini import Gemini
 from cogency.lib.llms.openai import OpenAI
 
 from . import cc_md
-from .llms.codex import Codex
 from .llms.glm import GLM
 from .state import Config
 
@@ -61,8 +60,6 @@ def _create_llm(provider_name: str, app_config: Config, tools: list[dict] | None
     cls, model_params = providers[provider_name]
 
     if provider_name == "openai" and app_config.model:
-        if "codex" in app_config.model:
-            return Codex(api_key=api_key, model=app_config.model, tools=tools)
         if "realtime" in app_config.model:
             return OpenAI(api_key=api_key, websocket_model=app_config.model)
 
@@ -112,15 +109,11 @@ def _map_openai_websocket_model(model: str) -> str | None:
 
 
 def _get_model_name(llm, provider: str) -> str:
-    model_key = ""
-    if isinstance(llm, Codex):
-        model_key = llm.model
-    elif hasattr(llm, "http_model"):
+    if hasattr(llm, "http_model"):
         model_key = llm.http_model
     else:
         model_key = provider.lower()
 
-    # Derive display name from model_key
     if "gpt-5-codex" in model_key:
         return "Codex"
     if "gemini" in model_key:
