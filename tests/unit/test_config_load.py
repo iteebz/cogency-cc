@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from cc.state import Config
+from cc.config import Config
 
 
 def test_load_or_default_with_no_file():

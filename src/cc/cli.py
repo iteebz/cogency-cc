@@ -10,13 +10,12 @@ import typer
 
 from .agent import create_agent
 from .alias import MODEL_ALIASES
-from .commands import context_command, nuke_command, profile_command
+from .commands import context_command, nuke_command, profile_command, session_app
+from .config import Config
 from .conversations import get_last_conversation
 from .lib.fs import root
+from .lib.sqlite import Snapshots
 from .render import Renderer
-from .session import session_app
-from .state import Config
-from .storage import Snapshots
 
 
 class DefaultRunGroup(typer.core.TyperGroup):
@@ -67,7 +66,7 @@ async def run_agent(
     evo_mode: bool = False,
     config=None,
 ):
-    from .storage import storage as get_storage
+    from .lib.sqlite import storage as get_storage
 
     storage = get_storage(config)
     msgs = await storage.load_messages(conv_id, config.user_id)

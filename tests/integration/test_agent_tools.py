@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from cc.agent import create_agent
-from cc.state import Config
+from cc.config import Config
 from tests.conftest import MockLLM
 
 

@@ -5,8 +5,8 @@ from cogency.lib.llms.gemini import Gemini
 from cogency.lib.llms.openai import OpenAI
 
 from . import cc_md
+from .config import Config
 from .llms.glm import GLM
-from .state import Config
 
 __all__ = ["create_agent"]
 
@@ -15,6 +15,8 @@ def create_agent(app_config: Config, cli_instruction: str = "") -> Agent:
     from pathlib import Path
 
     from cogency.tools import tools
+
+    from .lib.sqlite import storage as get_storage
 
     model_name = app_config.model or ""
     mode = "resume" if "live" in model_name or "realtime" in model_name else "replay"
@@ -36,6 +38,7 @@ def create_agent(app_config: Config, cli_instruction: str = "") -> Agent:
     profile = not cli_instruction
 
     llm = _create_llm(app_config.provider, app_config)
+    storage = get_storage(app_config)
 
     return Agent(
         llm=llm,
@@ -46,6 +49,7 @@ def create_agent(app_config: Config, cli_instruction: str = "") -> Agent:
         tools=tools,
         mode=mode,
         profile=profile,
+        storage=storage,
     )
 
 

@@ -99,7 +99,7 @@ def mock_api_keys():
 @pytest.fixture
 def clear_db_initialized_paths():
     """Fixture to clear the DB._initialized_paths before each test."""
-    from cc.storage.db import DB
+    from cc.lib.sqlite import DB
 
     DB._initialized_paths.clear()
     yield

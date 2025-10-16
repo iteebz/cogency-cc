@@ -2,12 +2,23 @@ import asyncio
 import json
 import sqlite3
 import time
+from pathlib import Path
 from typing import Any
 
 from cogency.lib.resilience import retry
 from cogency.lib.uuid7 import uuid7
 
-from .db import DB
+from ..config import Config
+
+
+class DB:
+    _initialized_paths = set()
+
+    @classmethod
+    def connect(cls, db_path: str):
+        path = Path(db_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return sqlite3.connect(path)
 
 
 class Snapshots:
@@ -49,7 +60,6 @@ class Snapshots:
         try:
             return await asyncio.get_event_loop().run_in_executor(None, _sync_save)
         except sqlite3.IntegrityError:
-            # If a session with this tag already exists, overwrite it
             return await self.overwrite_session(tag, conversation_id, user_id, model_config)
 
     @retry(attempts=3, base_delay=0.1)
@@ -122,3 +132,12 @@ class Snapshots:
                 return None
 
         return await asyncio.get_event_loop().run_in_executor(None, _sync_load)
+
+
+def storage(config: Config):
+    from cogency.lib.sqlite import SQLite
+
+    return SQLite(str(config.config_dir / "store.db"))
+
+
+__all__ = ["DB", "Snapshots", "storage"]

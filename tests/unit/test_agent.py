@@ -1,12 +1,13 @@
 """Core agent behavior and contract tests."""
 
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
 from cc.agent import _create_llm, create_agent
 from cc.cc_md import CC_IDENTITY
-from cc.state import Config
+from cc.config import Config
 
 
 def test_create_agent_with_default_config():
@@ -16,6 +17,7 @@ def test_create_agent_with_default_config():
     config.model = "gpt-4"
     config.identity = "code"
     config.get_api_key.return_value = "test-key"
+    config.config_dir = Path("/tmp/.cogency")
 
     with (
         patch("cogency.tools") as mock_tools,
@@ -53,6 +55,7 @@ def test_create_agent_with_cli_instruction():
     config = Mock(spec=Config)
     config.get_api_key.return_value = "test-key"
     config.model = "some-model"
+    config.config_dir = Path("/tmp/.cogency")
 
     with (
         patch("cc.agent._create_llm"),
@@ -116,6 +119,7 @@ def test_security_boundary_enforced():
     config.identity = "code"
     config.get_api_key.return_value = "test-key"
     config.model = "some-model"
+    config.config_dir = Path("/tmp/.cogency")
 
     with (
         patch("cogency.tools"),

@@ -4,11 +4,11 @@ import json
 
 import typer
 
-from .conversations import get_last_conversation
-from .lib.fs import root
-from .render.color import C
-from .state import Config
-from .storage import Snapshots
+from ..config import Config
+from ..conversations import get_last_conversation
+from ..lib.fs import root
+from ..lib.sqlite import Snapshots
+from ..render.color import C
 
 
 async def show_context(config: Config, snapshots: Snapshots):
@@ -25,7 +25,7 @@ async def show_context(config: Config, snapshots: Snapshots):
         typer.echo("No conversation found")
         return
 
-    from .storage import storage as get_storage
+    from .lib.sqlite import storage as get_storage
 
     storage = get_storage(config)
     msgs = await storage.load_messages(conv_id, config.user_id)

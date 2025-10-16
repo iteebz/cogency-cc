@@ -5,13 +5,13 @@ import json
 import typer
 from cogency.lib.sqlite import DB
 
-from .render.color import C
-from .state import Config
-from .storage import Snapshots
+from ..config import Config
+from ..lib.sqlite import Snapshots
+from ..render.color import C
 
 
 async def show_profile(config: Config, snapshots: Snapshots):
-    from .storage import storage as get_storage
+    from ..lib.sqlite import storage as get_storage
 
     storage = get_storage(config)
 
@@ -39,7 +39,7 @@ async def show_profile(config: Config, snapshots: Snapshots):
 
 
 async def nuke_profile(config: Config, snapshots: Snapshots):
-    from .storage import storage as get_storage
+    from ..lib.sqlite import storage as get_storage
 
     storage = get_storage(config)
 
@@ -53,7 +53,7 @@ async def nuke_profile(config: Config, snapshots: Snapshots):
 
 
 def _get_profile_history(user_id: str) -> list[dict]:
-    from .state import _default_config_dir
+    from ..config import _default_config_dir
 
     db_path = str(_default_config_dir() / "store.db")
     with DB.connect(db_path) as db:

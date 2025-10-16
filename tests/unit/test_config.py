@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from cc.state import Config, _default_config_dir
+from cc.config import Config, _default_config_dir
 
 
 @pytest.fixture
@@ -93,16 +93,16 @@ def test_get_api_key_priority(temp_config_dir: Path):
 
     # 1. No environment variable, should use saved key
     with patch.dict("os.environ", clear=True):
-        with patch("cc.state.rotated_api_key", return_value=None):
+        with patch("cc.config.rotated_api_key", return_value=None):
             assert config.get_api_key("openai") == "saved-key"
 
     # 2. With environment variable, should use env key
-    with patch("cc.state.rotated_api_key", return_value="env-key"):
+    with patch("cc.config.rotated_api_key", return_value="env-key"):
         assert config.get_api_key("openai") == "env-key"
 
     # 3. No key found
     with patch.dict("os.environ", clear=True):
-        with patch("cc.state.rotated_api_key", return_value=None):
+        with patch("cc.config.rotated_api_key", return_value=None):
             assert config.get_api_key("anthropic") is None
 
 
@@ -113,15 +113,15 @@ def test_get_api_key_status(temp_config_dir: Path):
     config.save()
 
     # Env key exists
-    with patch("cc.state.rotated_keys", return_value=["env-key"]):
+    with patch("cc.config.rotated_keys", return_value=["env-key"]):
         assert config.get_api_key_status("openai") == "✓ Openai (env)"
 
     # Only saved key exists
-    with patch("cc.state.rotated_keys", return_value=[]):
+    with patch("cc.config.rotated_keys", return_value=[]):
         assert config.get_api_key_status("openai") == "✓ Openai (saved)"
 
     # No key exists
-    with patch("cc.state.rotated_keys", return_value=[]):
+    with patch("cc.config.rotated_keys", return_value=[]):
         assert config.get_api_key_status("anthropic") == "✗ Anthropic"
 
 
@@ -138,7 +138,7 @@ def test_default_config_dir_logic():
     # 3. Default to home directory
     with patch.dict("os.environ", clear=True):
         with patch("pathlib.Path.home", return_value=Path("/fake/home")):
-            with patch("cc.state.Path") as mock_path:
+            with patch("cc.config.Path") as mock_path:
                 # Mock Path.cwd() to return a fake directory
                 mock_path.cwd.return_value = Path("/fake/cwd")
                 # Mock the project-local .cogency directory to not exist
