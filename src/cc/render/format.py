@@ -19,11 +19,13 @@ def tool_arg(args: dict, tool_name: str = "") -> str:
     if not isinstance(args, dict):
         return ""
 
-    if tool_name == "grep":
+    if tool_name == "find":
         for k in ["content", "pattern"]:
             if v := args.get(k):
                 s = str(v)
                 return s if len(s) < 50 else s[:47] + "..."
+        path = args.get("path", ".")
+        return path if path != "." else ""
 
     if k := next((k for k in ["file", "path"] if k in args), None):
         v = args[k]

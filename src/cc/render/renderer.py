@@ -118,6 +118,8 @@ class Renderer:
             self._state = self._state.with_phase("respond").with_response_started(True)
 
         self._buffer.append(e["content"])
+        last_newline = self._buffer.flush_incremental(lambda txt, **kw: self._print(txt, **kw))
+        self._state = self._state.with_newline_flag(last_newline)
 
     async def _on_call(self, e):
         from cogency.core.codec import parse_tool_call

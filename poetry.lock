@@ -419,7 +419,7 @@ colorama = {version = "*", markers = "platform_system == \"Windows\""}
 
 [[package]]
 name = "cogency"
-version = "3.1.0"
+version = "3.2.0"
 description = "Streaming agents"
 optional = false
 python-versions = ">=3.11,<4.0"
