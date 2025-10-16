@@ -19,14 +19,14 @@ async def test_renderer_clears_line_before_tool_result():
 
         # Simulate a tool call event to start a spinner
         tool_call_event = {"type": "call", "content": '{"name": "ls", "args": {"path": "."}}'}
-        await renderer._render_event(tool_call_event)
+        await renderer._dispatch(tool_call_event)
 
         # Simulate a tool result event
         tool_result_event = {
             "type": "result",
             "payload": {"outcome": "121 items", "content": "file1.txt\nfile2.txt"},
         }
-        await renderer._render_event(tool_result_event)
+        await renderer._dispatch(tool_result_event)
 
         output = captured_output.getvalue()
 
@@ -51,7 +51,7 @@ async def test_think_event_renders_with_grey_tilde():
         renderer = Renderer()
 
         think_event = {"type": "think", "content": "reasoning about the problem"}
-        await renderer._render_event(think_event)
+        await renderer._dispatch(think_event)
 
         output = captured_output.getvalue()
 

@@ -2,11 +2,11 @@
 
 import re
 
+from .color import C
+
 
 def tool_name(name: str, bold: bool = False) -> str:
     """Extract short name from dotted tool name."""
-    from .color import C
-
     if "." in name:
         name = name.split(".")[-1]
     if bold:
@@ -19,7 +19,6 @@ def tool_arg(args: dict, tool_name: str = "") -> str:
     if not isinstance(args, dict):
         return ""
 
-    # For grep tool, prioritize pattern/content over path
     if tool_name == "grep":
         for k in ["content", "pattern"]:
             if v := args.get(k):
@@ -53,23 +52,18 @@ def tool_outcome(payload: dict) -> str:
     if not outcome:
         return "ok"
 
-    # "N lines" for read/grep
     if m := re.match(r"(Grep|Wrote|Read) .+ \((\d+) lines?\)", outcome):
         return f"{m.group(2)} lines"
 
-    # "+N/-M" for edits
     if m := re.match(r"(Edited|Modified) .+ \(([-+0-9/]+)\)", outcome):
         return m.group(2)
 
-    # "N items" for ls
     if m := re.match(r"Listed (\d+) items", outcome):
         return f"{m.group(1)} items"
 
-    # "N matches" for grep
     if m := re.match(r"Found (\d+) (matches|results)", outcome):
         return f"{m.group(1)} {m.group(2)}"
 
-    # Shell command exit status
     if m := re.match(r"Command failed \(exit (\d+)\): (.+)", outcome):
         return f"exit {m.group(1)}"
 
@@ -96,3 +90,23 @@ def format_result(call, payload) -> str:
     outcome = tool_outcome(payload)
     base = f"{name}({arg})" if arg else f"{name}()"
     return f"{base}: {outcome}"
+
+
+def render_markdown(text: str) -> str:
+    """Render markdown with ANSI codes."""
+    text = re.sub(r"\*\*(.+?)\*\*", f"{C.BOLD}\\1{C.R}", text)
+    text = re.sub(r"(?<!\*)\*(?!\*)([^*]+?)\*(?!\*)", r"\033[3m\1\033[0m", text)
+    text = re.sub(r"`([^`]+)`", f"{C.GRAY}\\1{C.R}", text)
+    text = re.sub(r"^(#{1,6})\s+(.+)$", f"{C.BOLD}{C.CYAN}# \\2{C.R}", text, flags=re.MULTILINE)
+    return re.sub(r"\[([^\]]+)\]\(([^\)]+)\)", f"{C.CYAN}\\1{C.R} {C.GRAY}(\\2){C.R}", text)
+
+
+def is_markdown(text: str) -> bool:
+    """Check if text contains markdown patterns."""
+    markdown_patterns = [
+        r"^#{1,6}\s+",
+        r"\*\*.*?\*\*",
+        r"`[^`]+`",
+        r"\[.*?\]\(.*?\)",
+    ]
+    return any(re.search(pattern, text, re.MULTILINE) for pattern in markdown_patterns)
