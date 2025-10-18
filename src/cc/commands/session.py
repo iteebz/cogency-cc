@@ -12,13 +12,8 @@ session_app = typer.Typer(name="session", help="Manage saved agent sessions.")
 
 
 async def _save_session(config: Config, snapshots: Snapshots, tag: str):
-    result_tag_or_id = await snapshots.save_session(
-        tag, config.conversation_id, config.user_id, config.to_dict()
-    )
-    if result_tag_or_id == tag:
-        typer.echo(f"Session '{tag}' overwritten.")
-    else:
-        typer.echo(f"Session saved with tag: {tag}")
+    await snapshots.save_session(tag, config.conversation_id, config.user_id, config.to_dict())
+    typer.echo(f"Session saved with tag: {tag}")
 
 
 @session_app.command(name="save")

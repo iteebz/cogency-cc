@@ -109,6 +109,7 @@ class Renderer:
         if not e["content"].strip():
             return
 
+        content = e["content"]
         if not self._state.response_started:
             if self._state.phase == "think" and not self._state.last_char_newline:
                 self._newline(force=True)
@@ -116,9 +117,12 @@ class Renderer:
                 self._newline()
             self._print(f"{C.MAGENTA}›{C.R} ", end="", flush=True)
             self._state = self._state.with_phase("respond").with_response_started(True)
+            content = content.lstrip("\n")
 
-        self._buffer.append(e["content"])
-        last_newline = self._buffer.flush_incremental(lambda txt, **kw: self._print(txt, **kw))
+        self._buffer.append(content)
+        last_newline = self._buffer.flush_incremental(
+            lambda txt, **kw: self._print(txt, **kw), delimiter="\n\n", buffer_leading_ws=True
+        )
         self._state = self._state.with_newline_flag(last_newline)
 
     async def _on_call(self, e):

@@ -81,9 +81,8 @@ async def run_agent(
         latest_metric=latest_metric,
     )
 
-    is_codex = "codex" in (
-        agent.config.llm.http_model if hasattr(agent.config.llm, "http_model") else ""
-    )
+    model_str = getattr(agent.config.llm, "http_model", "") or ""
+    is_codex = "codex" in model_str.lower()
     stream = agent(
         query=query,
         user_id=config.user_id,

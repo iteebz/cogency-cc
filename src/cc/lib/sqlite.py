@@ -71,8 +71,8 @@ class Snapshots:
         def _sync_overwrite():
             with DB.connect(self.db_path) as db:
                 db.execute(
-                    "UPDATE sessions SET conversation_id = ?, user_id = ?, model_config = ?, created_at = ? WHERE tag = ?",
-                    (conversation_id, user_id, model_config_json, time.time(), tag),
+                    "UPDATE sessions SET conversation_id = ?, model_config = ?, created_at = ? WHERE tag = ? AND user_id = ?",
+                    (conversation_id, model_config_json, time.time(), tag, user_id),
                 )
                 return tag
 
