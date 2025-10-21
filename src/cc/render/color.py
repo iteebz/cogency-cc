@@ -27,7 +27,7 @@ class C:
     INVERT = "\033[7m"
 
     # Aliases for common usage in renderer
-    R = RESET  # Reset
+    R = RESET
     r = RED
     g = GREEN
     y = YELLOW
@@ -35,5 +35,16 @@ class C:
     m = MAGENTA
     c = CYAN
     w = WHITE
-    k = BLACK  # Black
-    G = GRAY  # Gray
+    k = BLACK
+    G = GRAY
+
+    # Lowercase aliases
+    red = RED
+    green = GREEN
+    yellow = YELLOW
+    blue = BLUE
+    magenta = MAGENTA
+    cyan = CYAN
+    white = WHITE
+    black = BLACK
+    gray = GRAY

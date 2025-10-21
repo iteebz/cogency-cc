@@ -25,7 +25,7 @@ async def show_context(config: Config, snapshots: Snapshots):
         typer.echo("No conversation found")
         return
 
-    from .lib.sqlite import storage as get_storage
+    from ..lib.sqlite import storage as get_storage
 
     storage = get_storage(config)
     msgs = await storage.load_messages(conv_id, config.user_id)

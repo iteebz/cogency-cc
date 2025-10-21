@@ -75,7 +75,8 @@ python_files = ["test_*.py", "*_test.py"]
 pythonpath = ["src"]
 filterwarnings = [
     "ignore::DeprecationWarning:starlette.*",
-    "ignore::PendingDeprecationWarning:starlette.*"
+    "ignore::PendingDeprecationWarning:starlette.*",
+    "ignore::DeprecationWarning:google.genai.types.*"
 ]
 addopts = [
     "--strict-markers",

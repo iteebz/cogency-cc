@@ -11,7 +11,6 @@ from cc.config import Config
 
 
 def test_create_agent_with_default_config():
-    """Should create agent with expected defaults."""
     config = Mock(spec=Config)
     config.provider = "openai"
     config.model = "gpt-4"
@@ -51,7 +50,6 @@ def test_create_agent_with_default_config():
 
 
 def test_create_agent_with_cli_instruction():
-    """Should disable profiling when CLI instruction provided."""
     config = Mock(spec=Config)
     config.get_api_key.return_value = "test-key"
     config.model = "some-model"
@@ -80,7 +78,6 @@ def test_create_agent_with_cli_instruction():
 
 
 def test_create_agent_invalid_provider():
-    """Should raise ValueError for unknown provider."""
     config = Mock(spec=Config)
     config.provider = "invalid"
     config.model = ""
@@ -91,7 +88,6 @@ def test_create_agent_invalid_provider():
 
 
 def test_create_openai_with_custom_model():
-    """Should create OpenAI with custom model."""
     config = Mock(spec=Config)
     config.model = "some-model"
     config.get_api_key.return_value = "openai-key"
@@ -102,7 +98,6 @@ def test_create_openai_with_custom_model():
 
 
 def test_create_glm_default():
-    """Should create GLM with default config."""
     config = Mock(spec=Config)
     config.model = "some-model"
     config.get_api_key.return_value = "glm-key"
@@ -113,7 +108,6 @@ def test_create_glm_default():
 
 
 def test_security_boundary_enforced():
-    """Should always enforce project-level security."""
     config = Mock(spec=Config)
     config.provider = "openai"
     config.identity = "code"
@@ -130,14 +124,12 @@ def test_security_boundary_enforced():
         mock_cc_md_load.return_value = None
         create_agent(config)
 
-        # Verify security boundary
         call_args = mock_agent.call_args
         assert call_args[1]["security"].access == "project"
         assert "Working directory:" in call_args[1]["instructions"]
 
 
 def test_coding_structure():
-    """Test that CODE contains required elements."""
     coding_identity = CC_IDENTITY
     assert "Surgical coding cli agent" in coding_identity
     assert "MANDATE" not in coding_identity
@@ -146,7 +138,6 @@ def test_coding_structure():
     assert "RUNTIME" not in coding_identity
     assert "SECURITY" not in coding_identity
 
-    # Verify key principles are present
     assert "- Explore before acting" in coding_identity
     assert "- Ground claims in tool output" in coding_identity
     assert "- Minimal edits over rewrites" in coding_identity

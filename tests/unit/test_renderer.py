@@ -175,8 +175,6 @@ async def test_markdown_bold_rendering(capsys, mock_config):
     assert captured.out.strip() == expected_output.strip()
 
 
-
-
 @pytest.mark.asyncio
 @patch.dict("os.environ", {"CI": "true"})
 async def test_header_rendering_with_metric(capsys, mock_config):

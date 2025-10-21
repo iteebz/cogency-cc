@@ -1,5 +1,3 @@
-"""Tests for agent security configuration."""
-
 from unittest.mock import MagicMock, patch
 
 from cc.agent import create_agent
@@ -8,7 +6,6 @@ from cc.agent import create_agent
 @patch("cc.agent.GLM")
 @patch("cc.agent.Config")
 def test_security_configuration(mock_config_class, mock_glm):
-    """Test that agent is created with project-scoped security."""
     from cogency.core.config import Security
 
     mock_config = MagicMock()
@@ -22,7 +19,6 @@ def test_security_configuration(mock_config_class, mock_glm):
         with patch("cc.agent.Agent") as mock_agent_class:
             create_agent(mock_config)
 
-            # Verify security configuration
             call_args = mock_agent_class.call_args
             security = call_args.kwargs["security"]
             assert isinstance(security, Security)

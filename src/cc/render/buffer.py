@@ -56,7 +56,7 @@ class Buffer:
                 self._last_char_newline = True
                 return True
 
-            to_flush_stripped = to_flush_stripped.lstrip()
+            to_flush_stripped = to_flush_stripped.lstrip("\n")
         else:
             if delimiter and delim_pos < 0:
                 to_flush_stripped = to_flush

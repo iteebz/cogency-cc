@@ -7,12 +7,8 @@ clean:
     @find . -type d -name "__pycache__" -exec rm -rf {} +
 
 install:
-    @poetry lock
+    @poetry lock --no-cache
     @poetry install
-
-reload:
-    @poetry remove cogency
-    @poetry add ../cogency
 
 ci: format fix test build
 

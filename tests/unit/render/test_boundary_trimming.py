@@ -185,3 +185,20 @@ async def test_single_space_after_delimiter_think(capsys, cfg):
 
     captured = capsys.readouterr()
     assert f"{C.GRAY}~{C.R} {C.GRAY}Thinking hard{C.R}" in captured.out
+
+
+@pytest.mark.asyncio
+@patch.dict("os.environ", {"CI": "true"})
+async def test_internal_spaces_preserved_across_chunks(capsys, cfg):
+    """Internal spacing preserved when buffer flushes on delimiter."""
+    events = [
+        {"type": "respond", "content": "Hello world and stuff"},
+        {"type": "respond", "content": "\n\nMore text here"},
+    ]
+    renderer = Renderer(config=cfg)
+    await renderer.render_stream(gen_events(events))
+
+    captured = capsys.readouterr()
+    assert "Hello world and stuff" in captured.out
+    assert "More text here" in captured.out
+    assert "Helloworldandstuff" not in captured.out

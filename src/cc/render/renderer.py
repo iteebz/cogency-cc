@@ -95,7 +95,7 @@ class Renderer:
             return
 
         if self._state.phase != "think":
-            if self._state.phase == "result" and not self._state.last_char_newline:
+            if self._state.phase in ("result", "respond") and not self._state.last_char_newline:
                 self._newline()
             self._print(f"{C.GRAY}~{C.R} ", end="", flush=True)
             self._state = self._state.with_phase("think")
