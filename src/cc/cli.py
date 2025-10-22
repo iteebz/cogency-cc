@@ -10,7 +10,7 @@ import typer
 
 from .agent import create_agent
 from .alias import MODEL_ALIASES
-from .commands import context_command, nuke_command, profile_command, session_app
+from .commands import context_command, export_command, nuke_command, profile_command, session_app
 from .config import Config
 from .conversations import get_last_conversation
 from .lib.fs import root
@@ -324,4 +324,5 @@ def set(
 app.command(name="profile")(profile_command)
 app.command(name="nuke")(nuke_command)
 app.command(name="context")(context_command)
+app.command(name="export")(export_command)
 app.add_typer(session_app)
