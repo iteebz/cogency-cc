@@ -48,8 +48,16 @@ cc config show / --set-key <provider> <key>
 
 API keys (precedence):
 1. Environment: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`
-2. Project: `.cogency/cc.json` (shared, committed)
-3. Home: `~/.cogency/cc.json` (personal)
+2. Project `.cogency/.env` file (shared, committed)
+3. Project: `.cogency/cc.json` (shared, committed)
+4. Home: `~/.cogency/.env` (personal)
+5. Home: `~/.cogency/cc.json` (personal)
+
+**Example `.cogency/.env`:**
+```
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+```
 
 **Example `.cogency/cc.json`:**
 ```json

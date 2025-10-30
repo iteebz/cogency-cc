@@ -1,24 +1,15 @@
 __pycache__/
 *.py[cod]
-*$py.class
-
 build/
 dist/
-*.egg-info/
-*.egg
-
-.coverage
-.pytest_cache/
-htmlcov/
-.tox/
-.nox/
 
 .env
 .venv/
 env/
 venv/
-ENV/
 
+.coverage
+.pytest_cache/
 .mypy_cache/
 .ruff_cache/
 
@@ -27,7 +18,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
-*.swo
 
-*.log
+repomix-output.*
 .cogency

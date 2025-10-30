@@ -10,10 +10,14 @@ install:
     @poetry lock --no-cache
     @poetry install
 
-ci: format fix test build
+ci:
+    @poetry run ruff format .
+    @poetry run ruff check . --fix --unsafe-fixes
+    @poetry run pytest tests -q
+    @poetry build
 
 test:
-    @PYTHONPATH=src:/Users/teebz/dev/space/public/cogency/src poetry run python -m pytest tests -v
+    @poetry run pytest tests
 
 format:
     @poetry run ruff format .
@@ -26,6 +30,9 @@ fix:
 
 build:
     @poetry build
+
+repomix:
+    repomix
 
 commits:
     @git --no-pager log --pretty=format:"%h | %ar | %s"

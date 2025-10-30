@@ -12,12 +12,26 @@ from cogency.lib.llms.rotation import load_keys as rotated_keys
 from cogency.lib.uuid7 import uuid7
 
 
-def _default_config_dir() -> Path:
-    """Select config directory based on environment."""
-    override = os.getenv("COGENCY_CONFIG_DIR")
-    if override:
-        return Path(override) / ".cogency"
+def _load_env_file(env_path: Path) -> dict[str, str]:
+    """Load .env file and return as dict."""
+    if not env_path.exists():
+        return {}
 
+    env_vars = {}
+    with open(env_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            env_vars[key.strip()] = value.strip().strip("'\"")
+    return env_vars
+
+
+def _default_config_dir() -> Path:
+    """Select config directory: project-local .cogency or home."""
     if os.getenv("PYTEST_CURRENT_TEST"):
         return Path(tempfile.gettempdir()) / f"cogency-cc-tests-{os.getpid()}"
 
@@ -45,6 +59,15 @@ class Config:
 
     def __post_init__(self) -> None:
         self.config_file = self.config_dir / "cc.json"
+        self._load_env_file()
+
+    def _load_env_file(self) -> None:
+        """Load .env file from .cogency directory and set env vars."""
+        env_file = self.config_dir / ".env"
+        env_vars = _load_env_file(env_file)
+        for key, value in env_vars.items():
+            if key not in os.environ:
+                os.environ[key] = value
 
     def get_api_key(self, provider: str) -> str | None:
         """Get API key: environment variables override stored keys."""

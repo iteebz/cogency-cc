@@ -7,6 +7,7 @@ from ..config import Config
 from ..lib.fs import root
 from ..lib.sqlite import Snapshots
 from .context import show_context
+from .export import export_conversation
 from .profile import show_profile
 from .session import session_app
 
@@ -40,6 +41,22 @@ def context_command(ctx: typer.Context) -> None:
     asyncio.run(show_context(config, snapshots))
 
 
+def export_command(
+    ctx: typer.Context,
+    conversation_id: str = typer.Option(
+        None, "--conv", "-c", help="Conversation ID to export (uses last if not specified)"
+    ),
+    format: str = typer.Option("markdown", "--format", "-f", help="Output format (markdown/json)"),
+    output: str = typer.Option(
+        None, "--output", "-o", help="Output file path (prints to stdout if not specified)"
+    ),
+    no_color: bool = typer.Option(False, "--no-color", help="Strip ANSI color codes"),
+) -> None:
+    """Export a conversation to markdown or JSON format."""
+    config: Config = ctx.obj["config"]
+    asyncio.run(export_conversation(config, conversation_id, format, output, no_color))
+
+
 __all__ = [
     "show_context",
     "show_profile",
@@ -47,4 +64,5 @@ __all__ = [
     "nuke_command",
     "profile_command",
     "context_command",
+    "export_command",
 ]

@@ -102,22 +102,22 @@ Users don't memorize model IDs. Aliases maintained in code, updated with release
 
 ### Configuration Hierarchy
 
-Precedence:
-1. Environment variables
-2. Project-local `.cogency/cc.json` (share in repo)
-3. Home `~/.cogency/cc.json` (personal, not committed)
-4. Hardcoded defaults
+**Directory discovery:**
+1. Project-local `.cogency/` (if exists in cwd)
+2. Home `~/.cogency/` (default fallback)
 
-Example:
-```python
-if os.getenv("COGENCY_CONFIG_DIR"):
-    return Path(os.getenv("COGENCY_CONFIG_DIR")) / ".cogency"
+**API key precedence:**
+1. Environment variables (e.g., `ANTHROPIC_API_KEY`)
+2. `.cogency/.env` file (project or home)
+3. Stored in `.cogency/cc.json`
 
-if (Path.cwd() / ".cogency").is_dir():
-    return Path.cwd() / ".cogency"
-
-return Path.home() / ".cogency"
+Example `.cogency/.env`:
 ```
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+```
+
+For special deployments, pass `config_dir` explicitly to Config.
 
 ### Security Access Level
 

@@ -127,15 +127,11 @@ def test_get_api_key_status(temp_config_dir: Path):
 
 def test_default_config_dir_logic():
     """Test the logic for determining the default config directory."""
-    # 1. Override via environment variable
-    with patch.dict("os.environ", {"COGENCY_CONFIG_DIR": "/tmp/custom"}):
-        assert _default_config_dir() == Path("/tmp/custom/.cogency")
-
-    # 2. Pytest environment
+    # 1. Pytest environment
     with patch.dict("os.environ", {"PYTEST_CURRENT_TEST": "true"}, clear=True):
         assert "cogency-cc-tests" in str(_default_config_dir())
 
-    # 3. Default to home directory
+    # 2. Default to home directory
     with patch.dict("os.environ", clear=True):
         with patch("pathlib.Path.home", return_value=Path("/fake/home")):
             with patch("cc.config.Path") as mock_path:

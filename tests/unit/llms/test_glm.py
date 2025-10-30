@@ -7,7 +7,7 @@ import pytest
 from cc.llms.glm import GLM
 
 
-def test_initialization():
+def test_initialization(mock_api_keys):
     """Test GLM provider initialization."""
     glm = GLM()
 
