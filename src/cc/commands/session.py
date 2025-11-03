@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+from functools import wraps
 from typing import Annotated
 
 import typer
@@ -11,20 +12,31 @@ from ..lib.sqlite import Snapshots
 session_app = typer.Typer(name="session", help="Manage saved agent sessions.")
 
 
+def _async_command(func):
+    """Decorator to run async function in asyncio.run()."""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return asyncio.run(func(*args, **kwargs))
+
+    return wrapper
+
+
 async def _save_session(config: Config, snapshots: Snapshots, tag: str):
     await snapshots.save_session(tag, config.conversation_id, config.user_id, config.to_dict())
     typer.echo(f"Session saved with tag: {tag}")
 
 
 @session_app.command(name="save")
-def save_session_command(
+@_async_command
+async def save_session_command(
     ctx: typer.Context,
     tag: Annotated[str, typer.Argument(help="TAG to save the session with.")],
 ):
     """Save the current conversation as a session with a given TAG."""
     config: Config = ctx.obj["config"]
     snapshots: Snapshots = ctx.obj["snapshots"]
-    asyncio.run(_save_session(config, snapshots, tag))
+    await _save_session(config, snapshots, tag)
 
 
 async def _list_sessions(config: Config, snapshots: Snapshots):
@@ -44,13 +56,14 @@ async def _list_sessions(config: Config, snapshots: Snapshots):
 
 
 @session_app.command(name="list")
-def list_sessions_command(
+@_async_command
+async def list_sessions_command(
     ctx: typer.Context,
 ):
     """List all saved sessions."""
     config: Config = ctx.obj["config"]
     snapshots: Snapshots = ctx.obj["snapshots"]
-    asyncio.run(_list_sessions(config, snapshots))
+    await _list_sessions(config, snapshots)
 
 
 async def _resume_session(config: Config, snapshots: Snapshots, tag: str):
@@ -65,14 +78,15 @@ async def _resume_session(config: Config, snapshots: Snapshots, tag: str):
 
 
 @session_app.command(name="resume")
-def resume_session_command(
+@_async_command
+async def resume_session_command(
     ctx: typer.Context,
     tag: Annotated[str, typer.Argument(help="TAG of the session to resume.")],
 ):
     """Resume a saved session by TAG."""
     config: Config = ctx.obj["config"]
     snapshots: Snapshots = ctx.obj["snapshots"]
-    asyncio.run(_resume_session(config, snapshots, tag))
+    await _resume_session(config, snapshots, tag)
 
 
 async def _fork_session(config: Config, snapshots: Snapshots, tag: str):
@@ -88,14 +102,15 @@ async def _fork_session(config: Config, snapshots: Snapshots, tag: str):
 
 
 @session_app.command(name="fork")
-def fork_session_command(
+@_async_command
+async def fork_session_command(
     ctx: typer.Context,
     tag: Annotated[str, typer.Argument(help="TAG of the session to fork.")],
 ):
     """Fork a saved session by TAG into a new conversation."""
     config: Config = ctx.obj["config"]
     snapshots: Snapshots = ctx.obj["snapshots"]
-    asyncio.run(_fork_session(config, snapshots, tag))
+    await _fork_session(config, snapshots, tag)
 
 
 async def _delete_session(config: Config, snapshots: Snapshots, tag: str):
@@ -107,14 +122,15 @@ async def _delete_session(config: Config, snapshots: Snapshots, tag: str):
 
 
 @session_app.command(name="delete")
-def delete_session_command(
+@_async_command
+async def delete_session_command(
     ctx: typer.Context,
     tag: Annotated[str, typer.Argument(help="TAG of the session to delete.")],
 ):
     """Delete a saved session by TAG."""
     config: Config = ctx.obj["config"]
     snapshots: Snapshots = ctx.obj["snapshots"]
-    asyncio.run(_delete_session(config, snapshots, tag))
+    await _delete_session(config, snapshots, tag)
 
 
 def _apply_config_from_loaded_session(config: Config, loaded_session: dict):

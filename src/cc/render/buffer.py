@@ -3,6 +3,40 @@
 from .format import is_markdown, render_markdown
 
 
+def _find_boundary(chunk: str, delimiter: str | None) -> tuple[str, int, bool]:
+    """Find boundary (delimiter or newline) in chunk.
+
+    Returns:
+        (text_to_flush, chars_to_skip, found_delimiter)
+    """
+    if delimiter:
+        delim_pos = chunk.find(delimiter)
+        if delim_pos >= 0:
+            return chunk[:delim_pos], delim_pos + len(delimiter), True
+
+    nl_pos = chunk.find("\n")
+    if nl_pos >= 0:
+        return chunk[: nl_pos + 1], nl_pos + 1, False
+
+    return chunk, len(chunk), False
+
+
+def _trim_for_output(
+    text: str, found_delim: bool, has_delim_arg: bool, buffer_leading_ws: bool
+) -> str:
+    """Normalize text for output based on boundary type and options."""
+    if buffer_leading_ws and has_delim_arg:
+        text = text.rstrip() if found_delim else text
+        text = text.lstrip("\n")
+    else:
+        if has_delim_arg and not found_delim:
+            text = text
+        else:
+            text = text.rstrip() if has_delim_arg else text
+
+    return text
+
+
 class Buffer:
     """Manages buffered output with incremental flushing."""
 
@@ -13,7 +47,7 @@ class Buffer:
         self._flushed_len = 0
 
     def append(self, text: str):
-        """Add text to buffer and flush incrementally."""
+        """Add text to buffer and track markdown presence."""
         self._content += text
         if is_markdown(text):
             self._has_markdown = True
@@ -26,42 +60,17 @@ class Buffer:
             return self._last_char_newline
 
         chunk = self._content[self._flushed_len :]
-        delim_pos = -1
+        to_flush, skip_chars, found_delim = _find_boundary(chunk, delimiter)
+        self._flushed_len += skip_chars
 
-        to_flush = chunk
-        if delimiter:
-            delim_pos = chunk.find(delimiter)
-            if delim_pos >= 0:
-                to_flush = chunk[:delim_pos]
-                self._flushed_len += delim_pos + len(delimiter)
+        if buffer_leading_ws and delimiter and found_delim:
+            remaining = self._content[self._flushed_len :]
+            ws_count = len(remaining) - len(remaining.lstrip())
+            self._flushed_len += ws_count
 
-                if buffer_leading_ws:
-                    remaining = self._content[self._flushed_len :]
-                    ws_count = len(remaining) - len(remaining.lstrip())
-                    self._flushed_len += ws_count
-            else:
-                nl_pos = chunk.find("\n")
-                if nl_pos >= 0:
-                    to_flush = chunk[: nl_pos + 1]
-                    self._flushed_len += nl_pos + 1
-                else:
-                    self._flushed_len = len(self._content)
-        else:
-            self._flushed_len = len(self._content)
-
-        if buffer_leading_ws and delimiter:
-            to_flush_stripped = to_flush.rstrip() if delim_pos >= 0 else to_flush
-
-            if not to_flush_stripped.strip():
-                self._last_char_newline = True
-                return True
-
-            to_flush_stripped = to_flush_stripped.lstrip("\n")
-        else:
-            if delimiter and delim_pos < 0:
-                to_flush_stripped = to_flush
-            else:
-                to_flush_stripped = to_flush.rstrip() if delimiter else to_flush
+        to_flush_stripped = _trim_for_output(
+            to_flush, found_delim, bool(delimiter), buffer_leading_ws
+        )
 
         if not to_flush_stripped.strip():
             self._last_char_newline = (
@@ -77,7 +86,7 @@ class Buffer:
 
         printer(to_flush_stripped, end="")
 
-        if delimiter and delim_pos >= 0:
+        if delimiter and found_delim:
             printer(delimiter, end="")
             self._last_char_newline = True
         else:
