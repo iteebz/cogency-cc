@@ -91,9 +91,10 @@ class GLM(LLM):
                     "stream": True,
                 }
 
-                logger.debug(f"GLM sending {len(messages)} messages")
-                for i, m in enumerate(messages[-5:]):
-                    logger.debug(f"  msg[{i}] {m.get('role')}: {m.get('content', '')[:80]}")
+                if logger.isEnabledFor(10):
+                    logger.debug(f"GLM sending {len(messages)} messages")
+                    for i, m in enumerate(messages[-5:]):
+                        logger.debug(f"  msg[{i}] {m.get('role')}: {m.get('content', '')[:80]}")
 
                 url = "https://api.z.ai/api/coding/paas/v4/chat/completions"
                 timeout = aiohttp.ClientTimeout(

@@ -53,26 +53,27 @@ class Renderer:
         if etype != "respond":
             self._flush_buffer()
 
-        if etype == "user":
-            await self._on_user(event)
-        elif etype == "intent":
-            await self._on_intent(event)
-        elif etype == "think":
-            await self._on_think(event)
-        elif etype == "respond":
-            await self._on_respond(event)
-        elif etype == "call":
-            await self._on_call(event)
-        elif etype == "result":
-            await self._on_result(event)
-        elif etype == "end":
-            await self._on_end()
-        elif etype == "error":
-            self._on_error(event)
-        elif etype == "interrupt":
-            self._on_interrupt()
-        elif etype == "metric":
-            self.latest_metric = event
+        match etype:
+            case "user":
+                await self._on_user(event)
+            case "intent":
+                await self._on_intent(event)
+            case "think":
+                await self._on_think(event)
+            case "respond":
+                await self._on_respond(event)
+            case "call":
+                await self._on_call(event)
+            case "result":
+                await self._on_result(event)
+            case "end":
+                await self._on_end()
+            case "error":
+                self._on_error(event)
+            case "interrupt":
+                self._on_interrupt()
+            case "metric":
+                self.latest_metric = event
 
     async def _on_user(self, e):
         self._state = self._state.reset_turn()

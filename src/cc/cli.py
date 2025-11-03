@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import os
+import sqlite3
 import uuid
 from pathlib import Path
 from typing import Annotated
@@ -16,6 +17,46 @@ from .conversations import get_last_conversation
 from .lib.fs import root
 from .lib.sqlite import Snapshots
 from .render import Renderer
+
+_NEW_OPTION = Annotated[
+    bool,
+    typer.Option(
+        "--new",
+        "-n",
+        help="Start a new conversation, ignoring history.",
+        rich_help_panel="Run Options",
+    ),
+]
+
+_EVO_OPTION = Annotated[
+    bool,
+    typer.Option(
+        "--evo",
+        "-e",
+        help="Enable evolutionary mode (experimental).",
+        rich_help_panel="Run Options",
+    ),
+]
+
+_CONV_OPTION = Annotated[
+    str | None,
+    typer.Option(
+        "--conv",
+        "-c",
+        help="Specify a conversation ID to resume or start.",
+        rich_help_panel="Run Options",
+    ),
+]
+
+_MODEL_OPTION = Annotated[
+    str | None,
+    typer.Option(
+        "--model-alias",
+        "-m",
+        help="Use a predefined model alias.",
+        rich_help_panel="Run Options",
+    ),
+]
 
 
 class DefaultRunGroup(typer.core.TyperGroup):
@@ -120,42 +161,10 @@ def main(
             help="Enable or disable debug logging for this run.",
         ),
     ] = None,
-    new: Annotated[
-        bool,
-        typer.Option(
-            "--new",
-            "-n",
-            help="Start a new conversation, ignoring history.",
-            rich_help_panel="Run Options",
-        ),
-    ] = False,
-    evo: Annotated[
-        bool,
-        typer.Option(
-            "--evo",
-            "-e",
-            help="Enable evolutionary mode (experimental).",
-            rich_help_panel="Run Options",
-        ),
-    ] = False,
-    conversation_id_arg: Annotated[
-        str | None,
-        typer.Option(
-            "--conv",
-            "-c",
-            help="Specify a conversation ID to resume or start.",
-            rich_help_panel="Run Options",
-        ),
-    ] = None,
-    model_alias: Annotated[
-        str | None,
-        typer.Option(
-            "--model-alias",
-            "-m",
-            help="Use a predefined model alias.",
-            rich_help_panel="Run Options",
-        ),
-    ] = None,
+    new: _NEW_OPTION = False,
+    evo: _EVO_OPTION = False,
+    conversation_id_arg: _CONV_OPTION = None,
+    model_alias: _MODEL_OPTION = None,
 ) -> None:
     config = Config.load_or_default()
     if debug is not None:
@@ -165,8 +174,6 @@ def main(
 
         set_debug(True)
     apply_model_alias(config, model_alias)
-
-    import sqlite3
 
     try:
         snapshots = Snapshots()
@@ -183,7 +190,7 @@ def main(
         "model_alias": model_alias,
     }
 
-    if ctx.invoked_subcommand is None and not ctx.args:  # no query provided, show help as usual
+    if ctx.invoked_subcommand is None and not ctx.args:
         typer.echo(ctx.get_help())
         raise typer.Exit(code=2)
 
@@ -215,39 +222,10 @@ def default_cmd(
         list[str],
         typer.Argument(help="The query to run with the agent."),
     ],
-    new: Annotated[
-        bool,
-        typer.Option(
-            "--new",
-            "-n",
-            help="Start a new conversation, ignoring history.",
-        ),
-    ] = False,
-    evo: Annotated[
-        bool,
-        typer.Option(
-            "--evo",
-            "-e",
-            help="Enable evolutionary mode (experimental).",
-        ),
-    ] = False,
-    conversation_id_arg: Annotated[
-        str | None,
-        typer.Option(
-            "--conv",
-            "-c",
-            help="Specify a conversation ID to resume or start.",
-        ),
-    ] = None,
-    model_alias: Annotated[
-        str | None,
-        typer.Option(
-            "--model-alias",
-            "-m",
-            help="Use a predefined model alias.",
-            rich_help_panel="Model Configuration",
-        ),
-    ] = None,
+    new: _NEW_OPTION = False,
+    evo: _EVO_OPTION = False,
+    conversation_id_arg: _CONV_OPTION = None,
+    model_alias: _MODEL_OPTION = None,
     save_config: Annotated[
         bool,
         typer.Option(hidden=True),
