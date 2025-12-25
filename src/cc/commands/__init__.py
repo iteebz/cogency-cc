@@ -3,7 +3,7 @@ import shutil
 
 import typer
 
-from ..lib.fs import root
+from ..storage import root
 from .export import export_conversation
 from .session import session_app
 
@@ -36,6 +36,7 @@ def export_command(
 ) -> None:
     """Export a conversation to markdown or JSON format."""
     from ..config import Config
+
     config: Config = ctx.obj["config"]
     asyncio.run(export_conversation(config, conversation_id, format, output, no_color))
 

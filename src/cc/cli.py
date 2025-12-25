@@ -12,10 +12,8 @@ import typer
 from .agent import create_agent
 from .commands import export_command, nuke_command, session_app
 from .config import Config
-from .conversations import get_last_conversation
-from .lib.fs import root
-from .lib.sqlite import Snapshots
 from .render import render
+from .storage import Snapshots, get_last_conversation, root
 
 _NEW_OPTION = Annotated[
     bool,
@@ -36,7 +34,6 @@ _CONV_OPTION = Annotated[
         rich_help_panel="Run Options",
     ),
 ]
-
 
 
 class DefaultRunGroup(typer.core.TyperGroup):
@@ -63,7 +60,6 @@ class RunGroup(DefaultRunGroup):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, default_command="__default__", **kwargs)
-
 
 
 async def run_agent(agent, query: str, conv_id: str, user_id: str):
@@ -106,6 +102,7 @@ def main(
         config.debug_mode = debug
     if config.debug_mode:
         import logging
+
         logging.basicConfig(level=logging.DEBUG)
 
     try:

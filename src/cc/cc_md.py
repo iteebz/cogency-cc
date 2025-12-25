@@ -1,4 +1,5 @@
-from .lib.fs import root
+from itertools import chain
+from pathlib import Path
 
 CC_IDENTITY = """IDENTITY
 Surgical coding cli agent.
@@ -17,9 +18,17 @@ def identity(model_name: str) -> str:
     return f"Cogency coding cli (cc) powered by {model_name}.\n\n{CC_IDENTITY}"
 
 
+def _root(start: Path = None) -> Path:
+    current = start or Path.cwd()
+    for parent in chain([current], current.parents):
+        if (parent / ".cogency").exists() or (parent / ".git").exists():
+            return parent
+    return current
+
+
 def load() -> str:
     """Load cc.md from project root if it exists."""
-    project_root = root()
+    project_root = _root()
     if project_root:
         cc_md_path = project_root / ".cogency" / "cc.md"
         if cc_md_path.exists():

@@ -1,9 +1,7 @@
-import asyncio
 import json
+import logging
 import os
 from collections.abc import AsyncGenerator
-
-import logging
 
 import aiohttp
 from cogency.core.protocols import LLM
@@ -58,7 +56,7 @@ class MLX(LLM):
                 result = await response.json()
                 return result["choices"][0]["message"]["content"]
 
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             logger.error("MLX API request timed out")
             raise RuntimeError("MLX API request timed out") from e
         except aiohttp.ClientConnectorError as e:
@@ -132,7 +130,7 @@ class MLX(LLM):
                     if stream_ended:
                         break
 
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             logger.error("MLX API stream timed out")
             raise RuntimeError("MLX API stream timed out") from e
         except aiohttp.ClientConnectorError as e:

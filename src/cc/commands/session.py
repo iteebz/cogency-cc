@@ -7,7 +7,7 @@ import typer
 from cogency.lib.uuid7 import uuid7
 
 from ..config import Config
-from ..lib.sqlite import Snapshots
+from ..storage import Snapshots
 
 session_app = typer.Typer(name="session", help="Manage saved agent sessions.")
 

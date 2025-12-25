@@ -1,9 +1,9 @@
 from pathlib import Path
 
 import pytest
+from cc.storage import Snapshots
 
 from cc.config import Config
-from cc.lib.sqlite import Snapshots
 
 
 @pytest.fixture

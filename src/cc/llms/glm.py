@@ -1,8 +1,7 @@
 import asyncio
+import logging
 import os
 from collections.abc import AsyncGenerator
-
-import logging
 
 import aiohttp
 from cogency.core.protocols import LLM
@@ -63,7 +62,7 @@ class GLM(LLM):
                     result = await response.json()
                     return result["choices"][0]["message"]["content"]
 
-            except asyncio.TimeoutError as e:
+            except TimeoutError as e:
                 logger.error("GLM API request timed out")
                 raise RuntimeError("GLM API request timed out") from e
             except aiohttp.ServerDisconnectedError as e:
@@ -157,7 +156,7 @@ class GLM(LLM):
                         logger.debug("GLM stream cancelled")
                         raise
 
-            except asyncio.TimeoutError as e:
+            except TimeoutError as e:
                 logger.error(f"GLM API stream timed out: {e}")
                 # Add more debugging info
                 logger.error("Timeout settings: total=300s, sock_read=60s, connect=30s")

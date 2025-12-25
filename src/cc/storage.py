@@ -1,24 +1,36 @@
+"""Consolidated storage: sqlite, sessions, conversations."""
+
 import asyncio
 import json
 import sqlite3
 import time
+from itertools import chain
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from cogency.lib.resilience import retry
 from cogency.lib.uuid7 import uuid7
 
-from ..config import Config
+if TYPE_CHECKING:
+    from .config import Config
 
 
-class DB:
-    _initialized_paths = set()
+def root(start: Path = None) -> Path:
+    current = start or Path.cwd()
+    for parent in chain([current], current.parents):
+        if (parent / ".cogency").exists() or (parent / ".git").exists():
+            return parent
+    return current
 
-    @classmethod
-    def connect(cls, db_path: str):
-        path = Path(db_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        return sqlite3.connect(path)
+
+def get_last_conversation(base_dir: str = None) -> str | None:
+    db_path = Path(base_dir) / ".cogency" / "store.db" if base_dir else Path(".cogency/store.db")
+    if not db_path.exists():
+        return None
+    with sqlite3.connect(db_path) as db:
+        cursor = db.execute("SELECT conversation_id FROM messages ORDER BY timestamp DESC LIMIT 1")
+        row = cursor.fetchone()
+        return row[0] if row else None
 
 
 class Snapshots:
@@ -26,8 +38,13 @@ class Snapshots:
         self.db_path = db_path
         self._init_schema()
 
+    def _connect(self):
+        path = Path(self.db_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return sqlite3.connect(path)
+
     def _init_schema(self):
-        with DB.connect(self.db_path) as db:
+        with self._connect() as db:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     session_id TEXT PRIMARY KEY,
@@ -38,7 +55,6 @@ class Snapshots:
                     created_at REAL NOT NULL,
                     UNIQUE(tag, user_id)
                 );
-
                 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
                 CREATE INDEX IF NOT EXISTS idx_sessions_tag ON sessions(tag);
             """)
@@ -49,8 +65,8 @@ class Snapshots:
         session_id = uuid7()
         model_config_json = json.dumps(model_config)
 
-        def _sync_save():
-            with DB.connect(self.db_path) as db:
+        def _sync():
+            with self._connect() as db:
                 db.execute(
                     "INSERT INTO sessions (session_id, tag, conversation_id, user_id, model_config, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                     (session_id, tag, conversation_id, user_id, model_config_json, time.time()),
@@ -58,7 +74,7 @@ class Snapshots:
                 return session_id
 
         try:
-            return await asyncio.get_event_loop().run_in_executor(None, _sync_save)
+            return await asyncio.get_event_loop().run_in_executor(None, _sync)
         except sqlite3.IntegrityError:
             return await self.overwrite_session(tag, conversation_id, user_id, model_config)
 
@@ -68,31 +84,31 @@ class Snapshots:
     ) -> str:
         model_config_json = json.dumps(model_config)
 
-        def _sync_overwrite():
-            with DB.connect(self.db_path) as db:
+        def _sync():
+            with self._connect() as db:
                 db.execute(
                     "UPDATE sessions SET conversation_id = ?, model_config = ?, created_at = ? WHERE tag = ? AND user_id = ?",
                     (conversation_id, model_config_json, time.time(), tag, user_id),
                 )
                 return tag
 
-        return await asyncio.get_event_loop().run_in_executor(None, _sync_overwrite)
+        return await asyncio.get_event_loop().run_in_executor(None, _sync)
 
     @retry(attempts=3, base_delay=0.1)
     async def delete_session(self, tag: str, user_id: str) -> int:
-        def _sync_delete():
-            with DB.connect(self.db_path) as db:
+        def _sync():
+            with self._connect() as db:
                 cursor = db.execute(
                     "DELETE FROM sessions WHERE tag = ? AND user_id = ?", (tag, user_id)
                 )
                 return cursor.rowcount
 
-        return await asyncio.get_event_loop().run_in_executor(None, _sync_delete)
+        return await asyncio.get_event_loop().run_in_executor(None, _sync)
 
     @retry(attempts=3, base_delay=0.1)
     async def list_sessions(self, user_id: str) -> list[dict[str, Any]]:
-        def _sync_load():
-            with DB.connect(self.db_path) as db:
+        def _sync():
+            with self._connect() as db:
                 db.row_factory = sqlite3.Row
                 rows = db.execute(
                     "SELECT tag, conversation_id, created_at, model_config FROM sessions WHERE user_id = ? ORDER BY created_at DESC",
@@ -108,19 +124,16 @@ class Snapshots:
                     for row in rows
                 ]
 
-        return await asyncio.get_event_loop().run_in_executor(None, _sync_load)
+        return await asyncio.get_event_loop().run_in_executor(None, _sync)
 
     @retry(attempts=3, base_delay=0.1)
     async def load_session(self, tag: str, user_id: str) -> dict[str, Any] | None:
-        def _sync_load():
-            with DB.connect(self.db_path) as db:
+        def _sync():
+            with self._connect() as db:
                 db.row_factory = sqlite3.Row
                 row = db.execute(
                     "SELECT tag, conversation_id, created_at, model_config FROM sessions WHERE tag = ? AND user_id = ?",
-                    (
-                        tag,
-                        user_id,
-                    ),
+                    (tag, user_id),
                 ).fetchone()
                 if row:
                     return {
@@ -131,13 +144,10 @@ class Snapshots:
                     }
                 return None
 
-        return await asyncio.get_event_loop().run_in_executor(None, _sync_load)
+        return await asyncio.get_event_loop().run_in_executor(None, _sync)
 
 
-def storage(config: Config):
+def storage(config: "Config"):
     from cogency.lib.sqlite import SQLite
 
     return SQLite(str(config.config_dir / "store.db"))
-
-
-__all__ = ["DB", "Snapshots", "storage"]

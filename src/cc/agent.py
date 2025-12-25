@@ -8,6 +8,7 @@ from . import cc_md
 from .config import Config
 from .llms.glm import GLM
 from .llms.mlx import MLX
+from .storage import storage as get_storage
 
 __all__ = ["create_agent"]
 
@@ -16,8 +17,6 @@ def create_agent(app_config: Config, cli_instruction: str = "") -> Agent:
     from pathlib import Path
 
     from cogency.tools import tools
-
-    from .lib.sqlite import storage as get_storage
 
     model_name = app_config.model or ""
     mode = "resume" if "live" in model_name or "realtime" in model_name else "replay"

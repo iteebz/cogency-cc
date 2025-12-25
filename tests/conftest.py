@@ -79,15 +79,6 @@ def mock_api_keys():
 
 
 @pytest.fixture
-def clear_db_initialized_paths():
-    from cc.lib.sqlite import DB
-
-    DB._initialized_paths.clear()
-    yield
-    DB._initialized_paths.clear()
-
-
-@pytest.fixture
 def mock_config(tmp_path):
     from unittest.mock import Mock
 
