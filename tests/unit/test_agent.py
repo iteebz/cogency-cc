@@ -6,7 +6,6 @@ from unittest.mock import Mock, patch
 import pytest
 
 from cc.agent import _create_llm, create_agent
-from cc.cc_md import CC_IDENTITY
 from cc.config import Config
 
 
@@ -127,12 +126,3 @@ def test_security_boundary_enforced():
         call_args = mock_agent.call_args
         assert call_args[1]["security"].access == "project"
         assert "Working directory:" in call_args[1]["instructions"]
-
-
-def test_coding_structure():
-    coding_identity = CC_IDENTITY
-    assert "Surgical coding cli agent" in coding_identity
-    assert "PRINCIPLES" in coding_identity
-    assert "- Explore before acting" in coding_identity
-    assert "- Ground claims in tool output" in coding_identity
-    assert "- Minimal edits over rewrites" in coding_identity

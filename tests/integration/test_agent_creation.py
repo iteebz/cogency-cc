@@ -23,7 +23,7 @@ def test_with_instructions(mock_config_class, mock_glm):
             call_args = mock_agent_class.call_args
 
             assert "Custom instructions" in call_args.kwargs["instructions"]
-            assert "Cogency coding cli (cc)" in call_args.kwargs["identity"]
+            assert "Execute tasks" in call_args.kwargs["identity"]
             assert call_args.kwargs["max_iterations"] == 42
 
 
@@ -42,4 +42,4 @@ def test_without_instructions(mock_config_class, mock_glm):
             create_agent(mock_config)
             call_args = mock_agent_class.call_args
             assert "Working directory:" in call_args.kwargs["instructions"]
-            assert "Cogency coding cli (cc)" in call_args.kwargs["identity"]
+            assert "Execute tasks" in call_args.kwargs["identity"]

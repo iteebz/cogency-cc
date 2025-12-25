@@ -1,22 +1,6 @@
 from itertools import chain
 from pathlib import Path
 
-CC_IDENTITY = """IDENTITY
-Surgical coding cli agent.
-
-PRINCIPLES
-- Explore before acting
-- Ground claims in tool output
-- Minimal edits over rewrites
-- Chain tools for sequential work
-
-Plain text only. No markdown."""
-
-
-def identity(model_name: str) -> str:
-    """Returns the base CODE identity string."""
-    return f"Cogency coding cli (cc) powered by {model_name}.\n\n{CC_IDENTITY}"
-
 
 def _root(start: Path = None) -> Path:
     current = start or Path.cwd()

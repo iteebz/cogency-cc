@@ -4,7 +4,6 @@ import asyncio
 import json
 import sqlite3
 import time
-from itertools import chain
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -14,17 +13,11 @@ from cogency.lib.uuid7 import uuid7
 if TYPE_CHECKING:
     from .config import Config
 
-
-def root(start: Path = None) -> Path:
-    current = start or Path.cwd()
-    for parent in chain([current], current.parents):
-        if (parent / ".cogency").exists() or (parent / ".git").exists():
-            return parent
-    return current
+HOME_DIR = Path.home() / ".cogency"
 
 
-def get_last_conversation(base_dir: str = None) -> str | None:
-    db_path = Path(base_dir) / ".cogency" / "store.db" if base_dir else Path(".cogency/store.db")
+def get_last_conversation() -> str | None:
+    db_path = HOME_DIR / "store.db"
     if not db_path.exists():
         return None
     with sqlite3.connect(db_path) as db:
@@ -34,7 +27,7 @@ def get_last_conversation(base_dir: str = None) -> str | None:
 
 
 class Snapshots:
-    def __init__(self, db_path: str = ".cogency/store.db"):
+    def __init__(self, db_path: Path = HOME_DIR / "store.db"):
         self.db_path = db_path
         self._init_schema()
 

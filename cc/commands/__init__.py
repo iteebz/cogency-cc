@@ -1,26 +1,23 @@
 import asyncio
 import shutil
+from pathlib import Path
 
 import typer
 
-from ..storage import root
 from .export import export_conversation
 from .session import session_app
 
+HOME_DIR = Path.home() / ".cogency"
+
 
 def nuke_command(ctx: typer.Context) -> None:
-    """Deletes the .cogency directory in the project root."""
-    project_root = root()
-    if project_root:
-        cogency_path = project_root / ".cogency"
-        if cogency_path.exists() and cogency_path.is_dir():
-            typer.echo(f"Nuking {cogency_path}...")
-            shutil.rmtree(cogency_path)
-            typer.echo("Done.")
-        else:
-            typer.echo(f"No .cogency directory found at {cogency_path}.")
+    """Deletes the ~/.cogency directory."""
+    if HOME_DIR.exists() and HOME_DIR.is_dir():
+        typer.echo(f"Nuking {HOME_DIR}...")
+        shutil.rmtree(HOME_DIR)
+        typer.echo("Done.")
     else:
-        typer.echo("No project root found.")
+        typer.echo(f"No .cogency directory found at {HOME_DIR}.")
 
 
 def export_command(

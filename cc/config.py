@@ -27,8 +27,7 @@ def _load_env_file(env_path: Path) -> dict[str, str]:
 def _default_config_dir() -> Path:
     if os.getenv("PYTEST_CURRENT_TEST"):
         return Path(tempfile.gettempdir()) / f"cogency-cc-tests-{os.getpid()}"
-    local = Path.cwd() / ".cogency"
-    return local if local.is_dir() else Path.home() / ".cogency"
+    return Path.home() / ".cogency"
 
 
 @dataclass

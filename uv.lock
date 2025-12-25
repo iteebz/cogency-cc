@@ -292,7 +292,7 @@ wheels = [
 [[package]]
 name = "cogency"
 version = "3.3.0"
-source = { registry = "https://pypi.org/simple" }
+source = { editable = "../cogency" }
 dependencies = [
     { name = "anthropic" },
     { name = "ddgs" },
@@ -305,9 +305,30 @@ dependencies = [
     { name = "typer" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/39/75/230e4bcc21e7f5d26a404b5e2865da85beb9fd7d59612549f8b98529a06b/cogency-3.3.0.tar.gz", hash = "sha256:a47447d80a7b79d24ec08d7e4db8dff445b7622f7a4c53ff9c062998a5a2cb4a", size = 224303, upload-time = "2025-12-19T02:49:11.941Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/95/74/d2f310c59cc5d2e0c385e361e7adb572436f5bcded138d05638f1a601619/cogency-3.3.0-py3-none-any.whl", hash = "sha256:2546a7eb7e314c1d599c203be87b68af13a7ec608bfd5e1f565041619c67c51f", size = 67218, upload-time = "2025-12-19T02:49:10.382Z" },
+
+[package.metadata]
+requires-dist = [
+    { name = "anthropic", specifier = ">=0.67.0" },
+    { name = "ddgs", specifier = ">=9.5.2" },
+    { name = "google-api-core", specifier = ">=2.11.0" },
+    { name = "google-genai", specifier = ">=1.36.0" },
+    { name = "openai", specifier = ">=1.107.1" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "tiktoken", specifier = ">=0.11.0" },
+    { name = "trafilatura", specifier = ">=2.0.0" },
+    { name = "typer", specifier = ">=0.17.4" },
+    { name = "websockets", specifier = "==15.0.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pre-commit", specifier = ">=4.5.1" },
+    { name = "pyright", specifier = ">=1.1.407" },
+    { name = "pytest", specifier = ">=8.4.1" },
+    { name = "pytest-asyncio", specifier = ">=1.1.0" },
+    { name = "pytest-cov", specifier = ">=7.0.0" },
+    { name = "pytest-timeout", specifier = ">=2.4.0" },
+    { name = "ruff", specifier = ">=0.13.0" },
 ]
 
 [[package]]
@@ -331,7 +352,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.9.0" },
-    { name = "cogency", specifier = ">=3.3.0" },
+    { name = "cogency", editable = "../cogency" },
     { name = "typer", specifier = ">=0.17.4" },
 ]
 

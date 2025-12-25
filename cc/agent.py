@@ -16,39 +16,36 @@ __all__ = ["create_agent"]
 def create_agent(app_config: Config, cli_instruction: str = "") -> Agent:
     from pathlib import Path
 
-    from cogency.tools import tools
+    from cogency.tools import code, memory, web
 
     model_name = app_config.model or ""
     mode = "resume" if "live" in model_name or "realtime" in model_name else "replay"
 
-    code_identity_prompt = cc_md.identity(model_name)
     project_instructions = cc_md.load() or ""
 
     cwd = Path.cwd()
-    combined_instructions = f"Working directory: {cwd}"
+    instructions = f"Working directory: {cwd}"
     if project_instructions:
-        combined_instructions += f"\n\n{project_instructions}"
+        instructions += f"\n\n{project_instructions}"
     if cli_instruction:
-        combined_instructions += f"\n\n{cli_instruction}"
+        instructions += f"\n\n{cli_instruction}"
 
-    tools = tools.category(["code", "web", "memory"])
-
-    max_iterations = 42
-
-    profile = not cli_instruction
-
+    tools = code + web + memory
     llm = _create_llm(app_config.provider, app_config)
     storage = get_storage(app_config)
 
+    identity = """Execute tasks. Minimal tool calls. Terse output.
+No exploration. No explanation. Just results."""
+
     return Agent(
         llm=llm,
-        max_iterations=max_iterations,
+        max_iterations=42,
         security=Security(access="project"),
-        identity=code_identity_prompt,
-        instructions=combined_instructions,
+        identity=identity,
+        instructions=instructions,
         tools=tools,
         mode=mode,
-        profile=profile,
+        profile=not cli_instruction,
         storage=storage,
     )
 

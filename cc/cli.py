@@ -10,7 +10,7 @@ from .agent import create_agent
 from .commands import export_command, nuke_command, session_app
 from .config import Config
 from .render import render
-from .storage import Snapshots, get_last_conversation, root
+from .storage import Snapshots, get_last_conversation
 
 _NEW_OPTION = Annotated[
     bool,
@@ -125,19 +125,7 @@ def _resolve_conversation_id(new: bool, conversation_id_arg: str | None) -> str:
         return str(uuid.uuid4())
     if conversation_id_arg:
         return conversation_id_arg
-
-    project_root = root()
-    conv_id = None
-    if project_root:
-        conv_id = get_last_conversation(str(project_root))
-
-    if not conv_id:
-        conv_id = get_last_conversation()
-
-    if not conv_id:
-        conv_id = str(uuid.uuid4())
-
-    return conv_id
+    return get_last_conversation() or str(uuid.uuid4())
 
 
 @app.command("__default__", hidden=True)
