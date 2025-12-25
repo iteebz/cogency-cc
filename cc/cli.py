@@ -1,9 +1,6 @@
 import asyncio
-import contextlib
-import os
 import sqlite3
 import uuid
-from pathlib import Path
 from typing import Annotated
 
 import click
@@ -155,40 +152,23 @@ def default_cmd(
 ):
     """Run a query with the agent."""
     config: Config = ctx.obj["config"]
-    previous_cwd: Path | None = None
-    project_root = root()
+    root_flags = ctx.obj.get("root_flags", {})
+    new = new or root_flags.get("new", False)
+    conversation_id_arg = conversation_id_arg or root_flags.get("conversation_id")
 
-    if project_root:
-        current_cwd = Path.cwd()
-        if current_cwd != project_root:
-            try:
-                os.chdir(project_root)
-                previous_cwd = current_cwd
-            except OSError as e:
-                typer.echo(f"Failed to switch to project root {project_root}: {e}")
-                raise typer.Exit(code=1) from e
+    query = " ".join(query_parts)
+    if not query:
+        parent = ctx.parent or ctx
+        typer.echo(parent.get_help())
+        raise typer.Exit()
 
-    try:
-        root_flags = ctx.obj.get("root_flags", {})
-        new = new or root_flags.get("new", False)
-        conversation_id_arg = conversation_id_arg or root_flags.get("conversation_id")
+    current_conv_id = _resolve_conversation_id(new, conversation_id_arg)
+    if new:
+        typer.echo(f"Starting new conversation with ID: {current_conv_id}")
 
-        query = " ".join(query_parts)
-        if not query:
-            parent = ctx.parent or ctx
-            typer.echo(parent.get_help())
-            raise typer.Exit()
-        current_conv_id = _resolve_conversation_id(new, conversation_id_arg)
-        if new:
-            typer.echo(f"Starting new conversation with ID: {current_conv_id}")
-
-        config.conversation_id = current_conv_id
-        agent = create_agent(config, "")
-        asyncio.run(run_agent(agent, query, current_conv_id, config.user_id))
-    finally:
-        if previous_cwd and Path.cwd() != previous_cwd:
-            with contextlib.suppress(OSError):
-                os.chdir(previous_cwd)
+    config.conversation_id = current_conv_id
+    agent = create_agent(config, "")
+    asyncio.run(run_agent(agent, query, current_conv_id, config.user_id))
 
 
 @app.command()
