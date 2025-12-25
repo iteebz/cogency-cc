@@ -8,7 +8,12 @@ from ..config import Config
 from ..conversations import get_last_conversation
 from ..lib.fs import root
 from ..lib.sqlite import Snapshots
-from ..render.color import C
+class C:
+    gray = "\033[90m"
+    cyan = "\033[36m"
+    magenta = "\033[35m"
+    green = "\033[32m"
+    R = "\033[0m"
 
 
 async def show_context(config: Config, snapshots: Snapshots):

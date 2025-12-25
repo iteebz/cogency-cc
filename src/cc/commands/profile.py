@@ -7,7 +7,11 @@ from cogency.lib.sqlite import DB
 
 from ..config import Config
 from ..lib.sqlite import Snapshots
-from ..render.color import C
+class C:
+    gray = "\033[90m"
+    cyan = "\033[36m"
+    green = "\033[32m"
+    R = "\033[0m"
 
 
 async def show_profile(config: Config, snapshots: Snapshots):

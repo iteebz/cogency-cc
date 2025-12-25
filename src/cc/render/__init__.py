@@ -1,4 +1,3 @@
-from .renderer import Renderer
-from .shell import format_shell_output
+from .renderer import Renderer, render
 
-__all__ = ["Renderer", "format_shell_output"]
+__all__ = ["Renderer", "render"]

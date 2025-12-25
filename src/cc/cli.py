@@ -10,7 +10,6 @@ import click
 import typer
 
 from .agent import create_agent
-from .alias import MODEL_ALIASES
 from .commands import context_command, export_command, nuke_command, profile_command, session_app
 from .config import Config
 from .conversations import get_last_conversation
@@ -48,15 +47,6 @@ _CONV_OPTION = Annotated[
     ),
 ]
 
-_MODEL_OPTION = Annotated[
-    str | None,
-    typer.Option(
-        "--model-alias",
-        "-m",
-        help="Use a predefined model alias.",
-        rich_help_panel="Run Options",
-    ),
-]
 
 
 class DefaultRunGroup(typer.core.TyperGroup):
@@ -84,19 +74,6 @@ class RunGroup(DefaultRunGroup):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, default_command="__default__", **kwargs)
 
-
-def apply_model_alias(config: Config, model_alias: str | None) -> None:
-    """Apply a model alias to the config if provided."""
-    if not model_alias:
-        return
-
-    if model_alias not in MODEL_ALIASES:
-        typer.echo(f"Unknown model alias: {model_alias}")
-        raise typer.Exit(code=1)
-
-    values = MODEL_ALIASES[model_alias]
-    config.provider = values.get("provider", config.provider)
-    config.model = values.get("model")
 
 
 async def run_agent(
@@ -160,7 +137,6 @@ def main(
     new: _NEW_OPTION = False,
     evo: _EVO_OPTION = False,
     conversation_id_arg: _CONV_OPTION = None,
-    model_alias: _MODEL_OPTION = None,
 ) -> None:
     config = Config.load_or_default()
     if debug is not None:
@@ -168,7 +144,6 @@ def main(
     if config.debug_mode:
         import logging
         logging.basicConfig(level=logging.DEBUG)
-    apply_model_alias(config, model_alias)
 
     try:
         snapshots = Snapshots()
@@ -182,7 +157,6 @@ def main(
         "new": new,
         "evo": evo,
         "conversation_id": conversation_id_arg,
-        "model_alias": model_alias,
     }
 
     if ctx.invoked_subcommand is None and not ctx.args:
@@ -220,11 +194,6 @@ def default_cmd(
     new: _NEW_OPTION = False,
     evo: _EVO_OPTION = False,
     conversation_id_arg: _CONV_OPTION = None,
-    model_alias: _MODEL_OPTION = None,
-    save_config: Annotated[
-        bool,
-        typer.Option(hidden=True),
-    ] = True,
 ):
     """Run a query with the agent."""
     config: Config = ctx.obj["config"]
@@ -246,11 +215,7 @@ def default_cmd(
         new = new or root_flags.get("new", False)
         evo = evo or root_flags.get("evo", False)
         conversation_id_arg = conversation_id_arg or root_flags.get("conversation_id")
-        model_alias = model_alias or root_flags.get("model_alias")
 
-        apply_model_alias(config, model_alias)
-        if save_config:
-            config.save()
         query = " ".join(query_parts)
         if not query:
             parent = ctx.parent or ctx

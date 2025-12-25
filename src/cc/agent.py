@@ -70,6 +70,9 @@ def _create_llm(provider_name: str, app_config: Config):
     llm_class = providers[provider_name]
 
     model_name = app_config.model
+    if not model_name:
+        return llm_class(api_key=api_key)
+
     is_websocket = "live" in model_name or "realtime" in model_name
 
     if is_websocket:
