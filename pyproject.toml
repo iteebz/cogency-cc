@@ -29,6 +29,7 @@ dependencies = [
 ]
 
 [project.scripts]
+ccc = "cc.__main__:main"
 cogency = "cc.__main__:main"
 
 [project.urls]

@@ -10,12 +10,12 @@ import click
 import typer
 
 from .agent import create_agent
-from .commands import context_command, export_command, nuke_command, profile_command, session_app
+from .commands import export_command, nuke_command, session_app
 from .config import Config
 from .conversations import get_last_conversation
 from .lib.fs import root
 from .lib.sqlite import Snapshots
-from .render import Renderer
+from .render import render
 
 _NEW_OPTION = Annotated[
     bool,
@@ -23,16 +23,6 @@ _NEW_OPTION = Annotated[
         "--new",
         "-n",
         help="Start a new conversation, ignoring history.",
-        rich_help_panel="Run Options",
-    ),
-]
-
-_EVO_OPTION = Annotated[
-    bool,
-    typer.Option(
-        "--evo",
-        "-e",
-        help="Enable evolutionary mode (experimental).",
         rich_help_panel="Run Options",
     ),
 ]
@@ -76,40 +66,14 @@ class RunGroup(DefaultRunGroup):
 
 
 
-async def run_agent(
-    agent,
-    query: str,
-    conv_id: str,
-    resuming: bool = False,
-    evo_mode: bool = False,
-    config=None,
-):
-    from .lib.sqlite import storage as get_storage
-
-    storage = get_storage(config)
-    msgs = await storage.load_messages(conv_id, config.user_id)
-    latest_metric = await storage.load_latest_metric(conv_id)
-
-    renderer = Renderer(
-        messages=msgs,
-        llm=agent.config.llm,
-        conv_id=conv_id,
-        config=config,
-        evo_mode=evo_mode,
-        latest_metric=latest_metric,
-    )
-
-    stream = agent(
-        query=query,
-        user_id=config.user_id,
-        conversation_id=conv_id,
-    )
+async def run_agent(agent, query: str, conv_id: str, user_id: str):
+    stream = agent(query=query, user_id=user_id, conversation_id=conv_id)
     try:
-        await renderer.render_stream(stream)
+        await render(stream)
     finally:
-        if stream and hasattr(stream, "aclose"):
+        if hasattr(stream, "aclose"):
             await stream.aclose()
-        if agent.config.llm and hasattr(agent.config.llm, "close"):
+        if hasattr(agent.config.llm, "close"):
             await agent.config.llm.close()
 
 
@@ -135,7 +99,6 @@ def main(
         ),
     ] = None,
     new: _NEW_OPTION = False,
-    evo: _EVO_OPTION = False,
     conversation_id_arg: _CONV_OPTION = None,
 ) -> None:
     config = Config.load_or_default()
@@ -155,7 +118,6 @@ def main(
     ctx.obj = {"config": config, "snapshots": snapshots}
     ctx.obj["root_flags"] = {
         "new": new,
-        "evo": evo,
         "conversation_id": conversation_id_arg,
     }
 
@@ -192,7 +154,6 @@ def default_cmd(
         typer.Argument(help="The query to run with the agent."),
     ],
     new: _NEW_OPTION = False,
-    evo: _EVO_OPTION = False,
     conversation_id_arg: _CONV_OPTION = None,
 ):
     """Run a query with the agent."""
@@ -213,7 +174,6 @@ def default_cmd(
     try:
         root_flags = ctx.obj.get("root_flags", {})
         new = new or root_flags.get("new", False)
-        evo = evo or root_flags.get("evo", False)
         conversation_id_arg = conversation_id_arg or root_flags.get("conversation_id")
 
         query = " ".join(query_parts)
@@ -226,11 +186,8 @@ def default_cmd(
             typer.echo(f"Starting new conversation with ID: {current_conv_id}")
 
         config.conversation_id = current_conv_id
-
-        resuming = (not new) and (current_conv_id != str(uuid.uuid4()))
-
         agent = create_agent(config, "")
-        asyncio.run(run_agent(agent, query, current_conv_id, resuming, evo, config))
+        asyncio.run(run_agent(agent, query, current_conv_id, config.user_id))
     finally:
         if previous_cwd and Path.cwd() != previous_cwd:
             with contextlib.suppress(OSError):
@@ -259,8 +216,6 @@ def set(
     )
 
 
-app.command(name="profile")(profile_command)
 app.command(name="nuke")(nuke_command)
-app.command(name="context")(context_command)
 app.command(name="export")(export_command)
 app.add_typer(session_app)
