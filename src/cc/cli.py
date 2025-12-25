@@ -122,14 +122,10 @@ async def run_agent(
         latest_metric=latest_metric,
     )
 
-    model_str = getattr(agent.config.llm, "http_model", "") or ""
-    is_codex = "codex" in model_str.lower()
     stream = agent(
         query=query,
         user_id=config.user_id,
         conversation_id=conv_id,
-        chunks=not is_codex,
-        generate=is_codex,
     )
     try:
         await renderer.render_stream(stream)
@@ -170,9 +166,8 @@ def main(
     if debug is not None:
         config.debug_mode = debug
     if config.debug_mode:
-        from cogency.lib.logger import set_debug
-
-        set_debug(True)
+        import logging
+        logging.basicConfig(level=logging.DEBUG)
     apply_model_alias(config, model_alias)
 
     try:

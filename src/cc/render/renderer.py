@@ -39,9 +39,8 @@ class Renderer:
             self._print(f"\n{C.YELLOW}⚠{C.R} Interrupted by user.")
             await self._cancel_spinner()
         except Exception as e:
-            from cogency.lib.logger import logger
-
-            logger.error(f"Stream error: {e}")
+            import logging
+            logging.error(f"Stream error: {e}")
             raise
         finally:
             self._flush_buffer()
@@ -214,7 +213,7 @@ class Renderer:
 
     async def _spin(self, label: str):
         """Show spinner while waiting."""
-        if os.getenv("CI") == "true":
+        if os.getenv("CI") == "true" or not os.isatty(1):
             return
 
         frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]

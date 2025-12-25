@@ -2,11 +2,14 @@ import asyncio
 import os
 from collections.abc import AsyncGenerator
 
+import logging
+
 import aiohttp
 from cogency.core.protocols import LLM
 from cogency.lib.llms.interrupt import interruptible
 from cogency.lib.llms.rotation import with_rotation
-from cogency.lib.logger import logger
+
+logger = logging.getLogger(__name__)
 
 
 class GLM(LLM):

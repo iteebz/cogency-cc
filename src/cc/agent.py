@@ -1,4 +1,4 @@
-from cogency.core.agent import Agent
+from cogency import Agent
 from cogency.core.config import Security
 from cogency.lib.llms.anthropic import Anthropic
 from cogency.lib.llms.gemini import Gemini
