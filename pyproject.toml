@@ -37,7 +37,7 @@ homepage = "https://github.com/iteebz/cogency-cc"
 repository = "https://github.com/iteebz/cogency-cc"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/cc"]
+packages = ["cc"]
 
 [dependency-groups]
 dev = [
@@ -77,7 +77,7 @@ ignore = [
 [tool.pytest.ini_options]
 testpaths = ["tests/unit", "tests/integration"]
 python_files = ["test_*.py", "*_test.py"]
-pythonpath = ["src"]
+pythonpath = ["."]
 filterwarnings = [
     "ignore::DeprecationWarning:starlette.*",
     "ignore::PendingDeprecationWarning:starlette.*",

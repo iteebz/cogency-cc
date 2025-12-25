@@ -6,7 +6,8 @@ from datetime import datetime
 from pathlib import Path
 
 from ..config import Config
-from ..storage import get_last_conversation, storage as get_storage
+from ..storage import get_last_conversation
+from ..storage import storage as get_storage
 
 __all__ = ["export_conversation"]
 
@@ -62,7 +63,11 @@ async def export_conversation(
         rendered = _format_messages(messages, no_color=no_color)
         first_msg = messages[0]
         timestamp = first_msg.get("timestamp", 0)
-        formatted_date = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S") if timestamp else "Unknown"
+        formatted_date = (
+            datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
+            if timestamp
+            else "Unknown"
+        )
         turn_count = sum(1 for msg in messages if msg.get("type") == "user")
 
         content = f"""# Conversation Export

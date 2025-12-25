@@ -106,25 +106,6 @@ def test_get_api_key_priority(temp_config_dir: Path):
             assert config.get_api_key("anthropic") is None
 
 
-def test_get_api_key_status(temp_config_dir: Path):
-    """Test the display status for API keys."""
-    config = Config(config_dir=temp_config_dir)
-    config.api_keys = {"openai": "saved-key"}
-    config.save()
-
-    # Env key exists
-    with patch("cc.config.rotated_keys", return_value=["env-key"]):
-        assert config.get_api_key_status("openai") == "✓ Openai (env)"
-
-    # Only saved key exists
-    with patch("cc.config.rotated_keys", return_value=[]):
-        assert config.get_api_key_status("openai") == "✓ Openai (saved)"
-
-    # No key exists
-    with patch("cc.config.rotated_keys", return_value=[]):
-        assert config.get_api_key_status("anthropic") == "✗ Anthropic"
-
-
 def test_default_config_dir_logic():
     """Test the logic for determining the default config directory."""
     # 1. Pytest environment

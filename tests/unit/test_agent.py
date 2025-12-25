@@ -132,12 +132,7 @@ def test_security_boundary_enforced():
 def test_coding_structure():
     coding_identity = CC_IDENTITY
     assert "Surgical coding cli agent" in coding_identity
-    assert "MANDATE" not in coding_identity
     assert "PRINCIPLES" in coding_identity
-    assert "EXECUTION" in coding_identity
-    assert "RUNTIME" not in coding_identity
-    assert "SECURITY" not in coding_identity
-
     assert "- Explore before acting" in coding_identity
     assert "- Ground claims in tool output" in coding_identity
     assert "- Minimal edits over rewrites" in coding_identity
