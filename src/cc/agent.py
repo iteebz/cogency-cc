@@ -7,6 +7,7 @@ from cogency.lib.llms.openai import OpenAI
 from . import cc_md
 from .config import Config
 from .llms.glm import GLM
+from .llms.mlx import MLX
 
 __all__ = ["create_agent"]
 
@@ -56,6 +57,7 @@ def create_agent(app_config: Config, cli_instruction: str = "") -> Agent:
 def _create_llm(provider_name: str, app_config: Config):
     providers = {
         "glm": GLM,
+        "mlx": MLX,
         "openai": OpenAI,
         "anthropic": Anthropic,
         "gemini": Gemini,
